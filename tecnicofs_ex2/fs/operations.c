@@ -5,7 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-static pthread_mutex_t single_global_lock;
+static pthread_mutex_t single_global_lock = PTHREAD_MUTEX_INITIALIZER;
 static destroy_call_state_t tfs_destroy_all_closed_called;
 
 pthread_cond_t open_files_cond;
@@ -18,9 +18,6 @@ int tfs_init() {
 
     state_init();
 
-    if (pthread_mutex_init(&single_global_lock, 0) != 0)
-        return -1;
-
     /* create root inode */
     int root = inode_create(T_DIRECTORY);
     if (root != ROOT_DIR_INUM) {
@@ -32,9 +29,6 @@ int tfs_init() {
 
 int tfs_destroy() {
     state_destroy();
-    if (pthread_mutex_destroy(&single_global_lock) != 0) {
-        return -1;
-    }
     return 0;
 }
 
@@ -43,6 +37,9 @@ static bool valid_pathname(char const *name) {
 }
 
 int tfs_destroy_after_all_closed() {
+
+    printf("[ tfs_destroy_after_all_closed ] Calling destroy....\n");
+
     /* TO DO: implement this */
     tfs_destroy_all_closed_called = DESTROY;
 
@@ -130,6 +127,7 @@ static int _tfs_open_unsynchronized(char const *name, int flags) {
 int tfs_open(char const *name, int flags) {
 
     if (tfs_destroy_all_closed_called == DESTROY) {
+        printf("[ tfs_read ] TFS already destroyed!\n");
         return -1;
     }
 
@@ -196,24 +194,39 @@ static ssize_t _tfs_write_unsynchronized(int fhandle, void const *buffer,
 }
 
 ssize_t tfs_write(int fhandle, void const *buffer, size_t to_write) {
-    if (pthread_mutex_lock(&single_global_lock) != 0)
-        return -1;
-    ssize_t ret = _tfs_write_unsynchronized(fhandle, buffer, to_write);
-    if (pthread_mutex_unlock(&single_global_lock) != 0)
-        return -1;
 
+    if (tfs_destroy_all_closed_called == DESTROY) {
+        printf("[ tfs_read ] TFS already destroyed!\n");
+        return -1;
+    }
+
+    if (pthread_mutex_lock(&single_global_lock) != 0) {
+        printf("[ tfs_write ] Failed locking mutex...\n");
+        return -1;
+    }        
+    ssize_t ret = _tfs_write_unsynchronized(fhandle, buffer, to_write);
+
+    if (ret == -1)
+        printf("[ tfs_write ] Failed writing...\n");
+
+    if (pthread_mutex_unlock(&single_global_lock) != 0) {
+        printf("[ tfs_write ] Failed unlocking mutex...\n");
+        return -1;
+    }
     return ret;
 }
 
 static ssize_t _tfs_read_unsynchronized(int fhandle, void *buffer, size_t len) {
     open_file_entry_t *file = get_open_file_entry(fhandle);
     if (file == NULL) {
+        printf("[ tfs_read_unsynchronized ] Fail opening file...\n");
         return -1;
     }
 
     /* From the open file table entry, we get the inode */
     inode_t *inode = inode_get(file->of_inumber);
     if (inode == NULL) {
+        printf("[ tfs_read_unsynchronized ] Fail opening inode...\n");
         return -1;
     }
 
@@ -226,6 +239,7 @@ static ssize_t _tfs_read_unsynchronized(int fhandle, void *buffer, size_t len) {
     if (to_read > 0) {
         void *block = data_block_get(inode->i_data_block);
         if (block == NULL) {
+            printf("[ tfs_read_unsynchronized ] Fail opening block...\n");
             return -1;
         }
 
@@ -240,11 +254,24 @@ static ssize_t _tfs_read_unsynchronized(int fhandle, void *buffer, size_t len) {
 }
 
 ssize_t tfs_read(int fhandle, void *buffer, size_t len) {
-    if (pthread_mutex_lock(&single_global_lock) != 0)
+
+    if (tfs_destroy_all_closed_called == DESTROY) {
+        printf("[ tfs_read ] TFS already destroyed!\n");
         return -1;
+    }
+
+    if (pthread_mutex_lock(&single_global_lock) != 0) {
+        printf("[ tfs_read ] Failed locking mutex...\n");
+        return -1;
+    }  
     ssize_t ret = _tfs_read_unsynchronized(fhandle, buffer, len);
-    if (pthread_mutex_unlock(&single_global_lock) != 0)
+    if (ret == -1)
+        printf("[ tfs_read ] Failed reading...\n");
+
+    if (pthread_mutex_unlock(&single_global_lock) != 0) {
+        printf("[ tfs_read ] Failed unlocking mutex...\n");
         return -1;
+    }
 
     return ret;
 }
