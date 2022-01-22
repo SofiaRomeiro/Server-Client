@@ -8,10 +8,6 @@
 static pthread_mutex_t single_global_lock = PTHREAD_MUTEX_INITIALIZER;
 static destroy_call_state_t tfs_destroy_all_closed_called;
 
-pthread_cond_t open_files_cond;
-pthread_mutex_t open_files_var_mutex;
-
-
 int tfs_init() {
 
     tfs_destroy_all_closed_called = INIT;
@@ -45,7 +41,7 @@ int tfs_destroy_after_all_closed() {
 
     lock_mutex();    
     while(get_open_files() != 0) {
-        pthread_cond_wait(&open_files_cond, &open_files_var_mutex);
+        set_cond_wait();
     }
     unlock_mutex();
     

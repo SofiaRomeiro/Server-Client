@@ -22,7 +22,8 @@ static open_file_entry_t open_file_table[MAX_OPEN_FILES];
 static char free_open_file_entries[MAX_OPEN_FILES];
 
 static int open_files;
-
+static pthread_cond_t open_files_cond;
+static pthread_mutex_t open_files_var_mutex;
 
 static inline bool valid_inumber(int inumber) {
     return inumber >= 0 && inumber < INODE_TABLE_SIZE;
@@ -366,6 +367,10 @@ int lock_mutex() {
 
 int unlock_mutex() {
     return pthread_mutex_unlock(&open_files_var_mutex);
+}
+
+void set_cond_wait() {
+    pthread_cond_wait(&open_files_cond, &open_files_var_mutex);
 }
 
 

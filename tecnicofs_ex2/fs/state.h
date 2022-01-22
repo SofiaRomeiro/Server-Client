@@ -42,9 +42,6 @@ typedef struct {
 
 typedef enum { INIT = 0, DESTROY = 1 } destroy_call_state_t;
 
-extern pthread_cond_t open_files_cond;
-extern pthread_mutex_t open_files_var_mutex;
-
 void state_init();
 void state_destroy();
 
@@ -67,5 +64,6 @@ open_file_entry_t *get_open_file_entry(int fhandle);
 int get_open_files();
 int lock_mutex();
 int unlock_mutex();
+void set_cond_wait();
 
 #endif // STATE_H
