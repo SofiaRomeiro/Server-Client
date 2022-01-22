@@ -310,19 +310,20 @@ void *data_block_get(int block_number) {
  * Returns: file handle if successful, -1 otherwise
  */
 int add_to_open_file_table(int inumber, size_t offset) {
+    pthread_mutex_lock(&open_files_var_mutex);
     for (int i = 0; i < MAX_OPEN_FILES; i++) {
-        pthread_mutex_lock(&open_files_var_mutex);
         if (free_open_file_entries[i] == FREE) {
             free_open_file_entries[i] = TAKEN;
             open_files++;
             open_file_table[i].of_inumber = inumber;
             open_file_table[i].of_offset = offset;
             pthread_mutex_unlock(&open_files_var_mutex);
+            printf("[ add_to_open_file_table] open files = %d\n", open_files);
             return i;
         }
-        pthread_mutex_unlock(&open_files_var_mutex);
-
     }
+    printf("[ add_to_open_file_table] open files = %d\n", open_files);
+    pthread_mutex_unlock(&open_files_var_mutex);
     return -1;
 }
 
@@ -339,8 +340,11 @@ int remove_from_open_file_table(int fhandle) {
     pthread_mutex_lock(&open_files_var_mutex);
     open_files--;
     free_open_file_entries[fhandle] = FREE;
+
+    printf("[ remove_from_open_file_table] open files = %d\n", open_files);
+
+    if (open_files == 0) pthread_cond_signal(&open_files_cond);
     pthread_mutex_unlock(&open_files_var_mutex);
-    pthread_cond_signal(&open_files_cond);
     return 0;
 }
 
@@ -370,7 +374,9 @@ int unlock_mutex() {
 }
 
 void set_cond_wait() {
-    pthread_cond_wait(&open_files_cond, &open_files_var_mutex);
+    while(get_open_files() != 0) {
+        pthread_cond_wait(&open_files_cond, &open_files_var_mutex);
+    }
 }
 
 

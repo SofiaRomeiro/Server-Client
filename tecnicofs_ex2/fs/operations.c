@@ -34,15 +34,22 @@ static bool valid_pathname(char const *name) {
 
 int tfs_destroy_after_all_closed() {
 
-    printf("[ tfs_destroy_after_all_closed ] Calling destroy....\n");
-
     /* TO DO: implement this */
+
+    if (pthread_mutex_lock(&single_global_lock) != 0) {
+        printf("[ tfs_destroy_after_all_closed ] Failed locking mutex\n");
+        return -1;
+    }
+
     tfs_destroy_all_closed_called = DESTROY;
 
-    lock_mutex();    
-    while(get_open_files() != 0) {
-        set_cond_wait();
+    if (pthread_mutex_unlock(&single_global_lock) != 0) {
+        printf("[ tfs_destroy_after_all_closed ] Failed locking mutex\n");
+        return -1;
     }
+
+    lock_mutex();    
+    set_cond_wait();
     unlock_mutex();
     
     tfs_destroy();
@@ -79,6 +86,7 @@ static int _tfs_open_unsynchronized(char const *name, int flags) {
         /* The file already exists */
         inode_t *inode = inode_get(inum);
         if (inode == NULL) {
+            printf("[ tfs_open_unsynchronized ] Failed getting inode\n");
             return -1;
         }
 
@@ -86,6 +94,7 @@ static int _tfs_open_unsynchronized(char const *name, int flags) {
         if (flags & TFS_O_TRUNC) {
             if (inode->i_size > 0) {
                 if (data_block_free(inode->i_data_block) == -1) {
+                    printf("[ tfs_open_unsynchronized ] Failed getting i_data_block\n");
                     return -1;
                 }
                 inode->i_size = 0;
@@ -102,15 +111,18 @@ static int _tfs_open_unsynchronized(char const *name, int flags) {
         /* Create inode */
         inum = inode_create(T_FILE);
         if (inum == -1) {
+            printf("[ tfs_open_unsynchronized ] Failed getting inum\n");
             return -1;
         }
         /* Add entry in the root directory */
         if (add_dir_entry(ROOT_DIR_INUM, inum, name + 1) == -1) {
             inode_delete(inum);
+            printf("[ tfs_open_unsynchronized ] Failed adding dir entry inode\n");
             return -1;
         }
         offset = 0;
     } else {
+        printf("[ tfs_open_unsynchronized ] Failed everything\n");
         return -1;
     }
 
@@ -125,16 +137,26 @@ static int _tfs_open_unsynchronized(char const *name, int flags) {
 
 int tfs_open(char const *name, int flags) {
 
-    if (tfs_destroy_all_closed_called == DESTROY) {
-        printf("[ tfs_read ] TFS already destroyed!\n");
+    if (pthread_mutex_lock(&single_global_lock) != 0) {
+        printf("[ tfs_open ] Failed locking mutex\n");
         return -1;
     }
 
-    if (pthread_mutex_lock(&single_global_lock) != 0)
+    if (tfs_destroy_all_closed_called == DESTROY) {
+
+        if (pthread_mutex_unlock(&single_global_lock) != 0) {
+            printf("[ tfs_open ] Failed unlocking mutex\n");
+            return -1;
+        }       
+
         return -1;
+    }
+        
     int ret = _tfs_open_unsynchronized(name, flags);
-    if (pthread_mutex_unlock(&single_global_lock) != 0)
+    if (pthread_mutex_unlock(&single_global_lock) != 0) {
+        printf("[ tfs_open ] Failed unlocking mutex\n");
         return -1;
+    }
 
     return ret;
 }
@@ -194,11 +216,13 @@ static ssize_t _tfs_write_unsynchronized(int fhandle, void const *buffer,
 
 ssize_t tfs_write(int fhandle, void const *buffer, size_t to_write) {
 
+    /*
     if (tfs_destroy_all_closed_called == DESTROY) {
         printf("[ tfs_read ] TFS already destroyed!\n");
         return -1;
     }
-
+    */
+    
     if (pthread_mutex_lock(&single_global_lock) != 0) {
         printf("[ tfs_write ] Failed locking mutex...\n");
         return -1;
@@ -254,10 +278,12 @@ static ssize_t _tfs_read_unsynchronized(int fhandle, void *buffer, size_t len) {
 
 ssize_t tfs_read(int fhandle, void *buffer, size_t len) {
 
+    /*
     if (tfs_destroy_all_closed_called == DESTROY) {
         printf("[ tfs_read ] TFS already destroyed!\n");
         return -1;
     }
+    */
 
     if (pthread_mutex_lock(&single_global_lock) != 0) {
         printf("[ tfs_read ] Failed locking mutex...\n");

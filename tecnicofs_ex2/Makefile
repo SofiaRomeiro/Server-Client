@@ -49,18 +49,20 @@ LDFLAGS = -pthread
 
 all: clean $(TARGET_EXECS)
 
-test: 
-	test0 test1 test2
+test: test0 test1 test2
 
 test0:
+	@printf "\n"
 	@echo ------- lib_destroy_after_all_closed_test ------------
 	./tests/lib_destroy_after_all_closed_test
 
 test1:
+	@printf "\n"
 	@echo ------- lib_destroy_after_all_closed_test_1 ------------
 	./tests/lib_destroy_after_all_closed_test_1
 
 test2:
+	@printf "\n"
 	@echo ------- lib_destroy_after_all_closed_test_2 ------------
 	./tests/lib_destroy_after_all_closed_test_2
 # The following target can be used to invoke clang-format on all the source and header
@@ -81,8 +83,9 @@ fmt: $(SOURCES) $(HEADERS)
 # the CC, LD, CFLAGS and LDFLAGS are used in this rule
 tests/client_server_simple_test: tests/client_server_simple_test.o client/tecnicofs_client_api.o
 fs/tfs_server: fs/operations.o fs/state.o
-tests/lib_destroy_after_all_closed_test: fs/operations.o fs/state.o
-tests/lib_destroy_after_all_closed_test_1: fs/operations.o fs/state.o
+tests/lib_destroy_after_all_closed_test: tests/lib_destroy_after_all_closed_test.o fs/operations.o fs/state.o
+tests/lib_destroy_after_all_closed_test_1: tests/lib_destroy_after_all_closed_test_1.o fs/operations.o fs/state.o
+tests/lib_destroy_after_all_closed_test_2: tests/lib_destroy_after_all_closed_test_2.o fs/operations.o fs/state.o
 
 clean:
 	rm -f $(OBJECTS) $(TARGET_EXECS)
