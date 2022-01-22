@@ -65,5 +65,7 @@ int remove_from_open_file_table(int fhandle);
 open_file_entry_t *get_open_file_entry(int fhandle);
 
 int get_open_files();
+int lock_mutex();
+int unlock_mutex();
 
 #endif // STATE_H

@@ -43,9 +43,12 @@ int tfs_destroy_after_all_closed() {
     /* TO DO: implement this */
     tfs_destroy_all_closed_called = DESTROY;
 
+    lock_mutex();    
     while(get_open_files() != 0) {
         pthread_cond_wait(&open_files_cond, &open_files_var_mutex);
     }
+    unlock_mutex();
+    
     tfs_destroy();
 
     return 0;

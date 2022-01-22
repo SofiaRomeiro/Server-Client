@@ -310,13 +310,17 @@ void *data_block_get(int block_number) {
  */
 int add_to_open_file_table(int inumber, size_t offset) {
     for (int i = 0; i < MAX_OPEN_FILES; i++) {
+        pthread_mutex_lock(&open_files_var_mutex);
         if (free_open_file_entries[i] == FREE) {
             free_open_file_entries[i] = TAKEN;
             open_files++;
             open_file_table[i].of_inumber = inumber;
             open_file_table[i].of_offset = offset;
+            pthread_mutex_unlock(&open_files_var_mutex);
             return i;
         }
+        pthread_mutex_unlock(&open_files_var_mutex);
+
     }
     return -1;
 }
@@ -331,8 +335,10 @@ int remove_from_open_file_table(int fhandle) {
         free_open_file_entries[fhandle] != TAKEN) {
         return -1;
     }
+    pthread_mutex_lock(&open_files_var_mutex);
     open_files--;
     free_open_file_entries[fhandle] = FREE;
+    pthread_mutex_unlock(&open_files_var_mutex);
     pthread_cond_signal(&open_files_cond);
     return 0;
 }
@@ -353,3 +359,13 @@ open_file_entry_t *get_open_file_entry(int fhandle) {
 int get_open_files() {
     return open_files;
 }
+
+int lock_mutex() {
+    return pthread_mutex_lock(&open_files_var_mutex);
+}
+
+int unlock_mutex() {
+    return pthread_mutex_unlock(&open_files_var_mutex);
+}
+
+
