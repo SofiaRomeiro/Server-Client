@@ -34,6 +34,8 @@ static bool valid_pathname(char const *name) {
 
 int tfs_destroy_after_all_closed() {
 
+    printf("[ tfs_destroy_after_all_closed ] Calling destroy....\n");
+
     /* TO DO: implement this */
 
     if (pthread_mutex_lock(&single_global_lock) != 0) {
@@ -137,12 +139,15 @@ static int _tfs_open_unsynchronized(char const *name, int flags) {
 
 int tfs_open(char const *name, int flags) {
 
+    printf("[ tfs_open ] Flag state = %s\n", (tfs_destroy_all_closed_called == DESTROY) ? "Destroyed" : "Not destroyed");
+
     if (pthread_mutex_lock(&single_global_lock) != 0) {
         printf("[ tfs_open ] Failed locking mutex\n");
         return -1;
     }
 
     if (tfs_destroy_all_closed_called == DESTROY) {
+        printf("[ tfs_open ] (%s) TFS already destroyed!\n", name);
 
         if (pthread_mutex_unlock(&single_global_lock) != 0) {
             printf("[ tfs_open ] Failed unlocking mutex\n");
@@ -157,6 +162,8 @@ int tfs_open(char const *name, int flags) {
         printf("[ tfs_open ] Failed unlocking mutex\n");
         return -1;
     }
+
+    printf("[ tfs_open ] destroy state is %d\n", tfs_destroy_all_closed_called);
 
     return ret;
 }

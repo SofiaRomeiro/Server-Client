@@ -7,7 +7,6 @@
 #define SIZE 512
 #define RW_THREAD_COUNT 1
 #define THREAD_COUNT (RW_THREAD_COUNT + 2) // one for the destroy, another for the open_fail
-
 /*  Simple test to check whether the implementation of
     tfs_destroy_after_all_closed is correct.
     Note: This test uses TecnicoFS as a library, not
@@ -36,6 +35,7 @@ void *rw_thread(void *arg) {
 
     for (int i = 0; i < COUNT; i++) {
         write_ret = tfs_write(fd_write, input, SIZE);
+        printf("[ test ] Write ret = %ld\n", write_ret);
         assert(write_ret == SIZE);
     }
 
@@ -82,6 +82,7 @@ int main() {
     sleep(1); // this sleep is to make sure we have opened the files in fn_thread
 
     assert(pthread_create(&threads[RW_THREAD_COUNT], NULL, destroy, NULL) == 0); 
+    sleep(1);
     assert(pthread_create(&threads[RW_THREAD_COUNT + 1], NULL, fail_to_open_prevent_starvation, NULL) == 0);
 
     for (int a = 0; a < THREAD_COUNT; a++) {
