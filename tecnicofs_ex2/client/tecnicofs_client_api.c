@@ -1,10 +1,40 @@
 #include "tecnicofs_client_api.h"
 #include <stdio.h>
+#include <string.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+
+#define PERMISSIONS 0777
+#define BUFFER_SIZE 40
 
 int tfs_mount(char const *client_pipe_path, char const *server_pipe_path) {
     /* TODO: Implement this */
-    printf("Client pipe path : %s\n", client_pipe_path);
-    printf("Server pipe path : %s\n", server_pipe_path);
+    int fcli, fserv;
+    char buffer[BUFFER_SIZE];
+
+    // abre a pipe para o servidor 
+    unlink(client_pipe_path);
+
+    if (mkfifo(client_pipe_path, PERMISSIONS) < 0) {
+        return -1;
+    }
+
+    if ((fcli = open(client_pipe_path, O_RDONLY)) < 0) 
+        return -1;
+
+    if ((fserv = open(server_pipe_path, O_WRONLY)) < 0)
+        return -1;
+
+    memset(buffer, '\0', sizeof(buffer));
+    // manda lhe o op code = 1
+    memcpy(buffer, (char *)TFS_OP_CODE_MOUNT, sizeof(char));
+    // manda lhe o nome do client_pipe 
+    size_t str_len = strlen(client_pipe_path);
+    memcpy(buffer + 1, client_pipe_path, str_len);
+
+    // recebe 0 => sucesso, se nao -1
 
     return -1;
 }
