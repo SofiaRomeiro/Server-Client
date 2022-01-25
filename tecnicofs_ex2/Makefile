@@ -65,6 +65,7 @@ test2:
 	@printf "\n"
 	@echo ------- lib_destroy_after_all_closed_test_2 ------------
 	./tests/lib_destroy_after_all_closed_test_2
+
 # The following target can be used to invoke clang-format on all the source and header
 # files. clang-format is a tool to format the source code based on the style specified 
 # in the file '.clang-format'.
