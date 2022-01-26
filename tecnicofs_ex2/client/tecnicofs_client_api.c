@@ -56,14 +56,24 @@ int tfs_mount(char const *client_pipe_path, char const *server_pipe_path) {
         return -1;
     } 
 
-    printf("[client_api] Reading from server...\n");       
+    while (1) {
+        n = read(fcli, buffer, sizeof(int));
 
-    if ((n = read(fcli, buffer, sizeof(int))) == -1) {
-        printf("[tfs_mount] Error reading\n");
-        return -1;
-    } 
+        printf("While : n = %ld\n", n);
 
-    printf("[api_client] n is %ld\n", n);       
+        if (n == 0) {
+            printf("[INFO - client_api] EOF\n");
+            break;
+        }            
+
+        else if (n == -1) {
+            printf("[ERROR - client_api] Error reading file\n");
+            return -1;
+        }
+
+        printf("[api_client] n is %ld\n", n);
+
+    }      
 
     printf("[client_api] Finish reading!\n");
 

@@ -57,18 +57,16 @@ int tfs_handle_mount(char pipe_name[], int fserv) {
     int free = 0;
 
     memset(pipe_name, '\0', CLI_PIPE_SIZE + 1);
-
-    //printf("[tfs_handle_mount] Reading...\n");
     
     ssize_t n = read(fserv, pipe_name, NAME_PIPE_SIZE);
 
     if (n == -1) {
-        //printf("[ ERROR ] Reading : Failed\n");
+        printf("[ ERROR ] Reading : Failed\n");
         return -1;
     }
 
     if (open_sessions == S) {
-        //printf("[ tfs_server ] tfs_mount: Reached limit number of sessions, please wait\n");
+        printf("[ tfs_server ] tfs_mount: Reached limit number of sessions, please wait\n");
         return -1;
     }
 
@@ -83,25 +81,20 @@ int tfs_handle_mount(char pipe_name[], int fserv) {
     memset(session->pipe_name, '\0', sizeof(session->pipe_name));
 
     memcpy(session->pipe_name, pipe_name, len);
-
-    // choose session id
     
     session->session_id = free;
 
-    // enviar ao client o session id
-
-    if ((fcli = open(pipe_name, O_WRONLY) < 0)) {
-        //printf("[ tfs_server ] tfs_mount : Failed to open client pipe\n");
+    if ((fcli = open(pipe_name, O_WRONLY)) < 0) {
+        printf("[ tfs_server ] tfs_mount : Failed to open client pipe\n");
         return -1;
     }
 
-    char session_id_cli[sizeof(char) + 1];
+    char session_id_cli[sizeof(int)];
     memset(session_id_cli, '\0', sizeof(session_id_cli));
-    //sprintf(session_id_cli, "%d", free);k
 
-    session_id_cli[0] = (char) free + '0';
+    //session_id_cli[0] = (char) free + '0';
 
-    n = 0;
+    memcpy(session_id_cli, (char *)&free, sizeof(int));
 
     n = write(fcli, session_id_cli, sizeof(char));
 
@@ -112,13 +105,18 @@ int tfs_handle_mount(char pipe_name[], int fserv) {
         return -1;
     }
 
+    if (close(fcli) == -1) {
+        printf("[ERROR - tfs_server] Error closing client\n");
+        return -1;
+    }
+
     return 0;
 
 }
 
 int main(int argc, char **argv) {
 
-    int fserv, fcli;
+    int fserv;
     ssize_t n;
     int command;
     char *server_pipe;
@@ -180,7 +178,7 @@ int main(int argc, char **argv) {
         }
 
         if (n == -1) {
-            //printf("[ ERROR ] Reading : Failed\n");
+            printf("[ ERROR ] Reading : Failed\n");
             return -1;
         }
 
@@ -189,22 +187,21 @@ int main(int argc, char **argv) {
         switch(command) {
             case (TFS_OP_CODE_MOUNT):
 
-                //printf("[INFO - tfs_server] Mounting...\n");
-
                 if (tfs_handle_mount(pipe_name, fserv) == -1) {
-                    //printf("[ tfs_server ] Error while mounting\n");
+                    printf("[ tfs_server ] Error while mounting\n");
                     return -1;
                 }
 
+                /*
                 if ((fcli = open(pipe_name, O_WRONLY)) < 0) 
                     return -1;
-
+                */
             break;
 
             case (TFS_OP_CODE_UNMOUNT):
 
                 if (open_sessions == 0) {
-                    //printf("[ tfs_server ] tfs_mount: There are no open sessions, please open one before unmount\n");
+                    printf("[ tfs_server ] tfs_mount: There are no open sessions, please open one before unmount\n");
                     return -1;
                 }
                 open_sessions--;
@@ -226,7 +223,7 @@ int main(int argc, char **argv) {
             break;
 
             default:
-                //printf("[tfs_server] Switch case : No correspondance\n");
+                printf("[tfs_server] Switch case : No correspondance\n");
                 return -1;
             break;
 
