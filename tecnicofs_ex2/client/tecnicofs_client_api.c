@@ -11,24 +11,34 @@
 #define PERMISSIONS 0777
 #define BUFFER_SIZE 40
 
+static int debug = 0;
+
+static int fcli;
+static int fserv;
 static int session_id = -1;
+
+void print_debug(char *str) {
+    if (debug) printf("%s\n", str);
+}
 
 int tfs_mount(char const *client_pipe_path, char const *server_pipe_path) {
     /* TODO: Implement this */
-    int fcli, fserv;
     ssize_t n;
-    char buffer[BUFFER_SIZE];
+
+    char buffer[4 + BUFFER_SIZE + 1];
     memset(buffer, '\0', sizeof(buffer));
 
      // named pipe - server
-    if ((fserv = open(server_pipe_path, O_WRONLY | O_NONBLOCK)) < 0) {
+    if ((fserv = open(server_pipe_path, O_WRONLY)) < 0) {
         printf("[INFO - tfs_mount] Error opening server: %s\n", strerror(errno));
         return -1;
     }
 
     size_t str_len = strlen(client_pipe_path);
 
-    sprintf(buffer, "%d", TFS_OP_CODE_MOUNT);
+    char code = TFS_OP_CODE_MOUNT + '0';
+
+    memcpy(buffer, &code, sizeof(char));
 
     memcpy(buffer + 1, client_pipe_path, str_len);
 
@@ -59,8 +69,6 @@ int tfs_mount(char const *client_pipe_path, char const *server_pipe_path) {
     while (1) {
         n = read(fcli, buffer, sizeof(int));
 
-        printf("While : n = %ld\n", n);
-
         if (n == 0) {
             printf("[INFO - client_api] EOF\n");
             break;
@@ -70,18 +78,11 @@ int tfs_mount(char const *client_pipe_path, char const *server_pipe_path) {
             printf("[ERROR - client_api] Error reading file\n");
             return -1;
         }
-
-        printf("[api_client] n is %ld\n", n);
-
     }      
-
-    printf("[client_api] Finish reading!\n");
 
     session_id = atoi(buffer); 
 
-    printf("[ + ] Session_id = %d\n", session_id);
-
-    return 0;
+    return session_id;
 }
 
 int tfs_unmount() {
@@ -91,9 +92,64 @@ int tfs_unmount() {
 
 int tfs_open(char const *name, int flags) {
     /* TODO: Implement this */
-    printf("Name : %s\nFlags : %d", name, flags);
 
-    return -1;
+    size_t pos = 0;
+    
+    char buffer[100];
+    memset(buffer, '\0', sizeof(buffer));
+
+    char name_s[BUFFER_SIZE];
+    memset(name_s, '\0', sizeof(name_s));
+    memcpy(name_s, name, sizeof(name_s));
+
+    char code = TFS_OP_CODE_OPEN + '0';
+    memcpy(buffer, &code, sizeof(char));  
+
+    char session_id_s[10];
+    memset(session_id_s, '\0', sizeof(session_id_s));
+
+    sprintf(session_id_s, "%d", session_id);
+    memcpy(buffer + 1, session_id_s, sizeof(int));
+    
+    memcpy(buffer + 5, name_s, sizeof(name_s));
+
+    char flags_c = (char) (flags + '0');
+    memcpy(buffer + 45, &flags_c, sizeof(char));
+    pos += sizeof(int);
+
+    // named pipe - client
+    if (fserv  < 0) {
+        printf("[tfs_open] Error opening client\n");
+        return -1;
+    }
+
+    ssize_t size_written = write(fserv, buffer, sizeof(buffer));
+
+    if (size_written < sizeof(buffer)) {
+        printf("[ERROR - API] tfs_open error on writing");
+    }
+
+    memset(buffer, '\0', sizeof(buffer));
+
+    while (1) {
+        ssize_t read_size = read(fcli, buffer, sizeof(char));
+
+        if (read_size == 0) {
+            printf("[INFO - client_api] EOF\n");
+            break;
+        }            
+
+        else if (read_size == -1) {
+            printf("[ERROR - client_api] Error reading file\n");
+            return -1;
+        }
+    }
+
+    int fhandler = atoi(buffer);
+
+    if (fhandler < 0) return -1;
+
+    return fhandler;
 }
 
 int tfs_close(int fhandle) {
@@ -104,7 +160,7 @@ int tfs_close(int fhandle) {
 
 ssize_t tfs_write(int fhandle, void const *buffer, size_t len) {
     /* TODO: Implement this */
-    printf("Fhandle : %d\n, buffer : %p\nlen : %ld\n", fhandle, buffer, len);
+    printf("Fhandle : %d\nbuffer : %p\nlen : %ld\n", fhandle, buffer, len);
     return -1;
 }
 

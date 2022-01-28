@@ -83,6 +83,8 @@ static int _tfs_open_unsynchronized(char const *name, int flags) {
     int inum;
     size_t offset;
 
+    printf("[OPS] Name : %s, flags : %d\n", name, flags);
+
     inum = _tfs_lookup_unsynchronized(name);
     if (inum >= 0) {
         /* The file already exists */
