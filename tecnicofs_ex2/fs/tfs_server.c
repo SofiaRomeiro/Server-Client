@@ -18,7 +18,7 @@
 
 typedef struct {
     int session_id;
-    char name[40];
+    int fhandler;
 } session_t;
 
 typedef enum {FREE_POS = 1, TAKEN_POS = 0} session_state_t;
@@ -73,44 +73,91 @@ int tfs_handle_mount(char name[], int fserv) {
         return -1;
     }
 
+    if ((fcli = open(name, O_WRONLY)) < 0) {
+            printf("[ tfs_server ] tfs_mount : Failed to open client pipe\n");
+            return -1;
+    }
+
     open_sessions++;
 
     free = find_free_pos();
 
     session_t *session = &(sessions[free]);
-
-    size_t len = strlen(name); //sem '\0'
-
-    memset(session->name, '\0', sizeof(session->name));
-
-    memcpy(session->name, name, len);
-    
     session->session_id = free;
 
-    if ((fcli = open(name, O_WRONLY)) < 0) {
-        printf("[ tfs_server ] tfs_mount : Failed to open client pipe\n");
-        return -1;
-    }
+    session->fhandler = fcli;
 
     char session_id_cli[sizeof(int)];
     memset(session_id_cli, '\0', sizeof(session_id_cli));
+    sprintf(session_id_cli, "%d", free);
 
-    memcpy(session_id_cli, (char *)&free, sizeof(int));
+    printf("[INFO - SERVER] Pipe is open\n");
 
-    n = write(fcli, session_id_cli, sizeof(char));
+    n = write(fcli, session_id_cli, sizeof(int));
 
     if (n == -1) {
         printf("[ ERROR ] Reading : Failed\n");
         return -1;
     }
 
-    if (close(fcli) == -1) {
-        printf("[ERROR - tfs_server] Error closing client\n");
-        return -1;
-    }
-
     return 0;
 
+}
+
+void tfs_handle_read(int fserv) {
+    char buffer[100];
+    char aux_buffer[100];
+    memset(buffer, '\0', sizeof(buffer));
+    memset(aux_buffer, '\0', sizeof(aux_buffer));
+
+    if (read(fserv, buffer, sizeof(int)) == -1) exit(EXIT_FAILURE);
+    int session_id = atoi(buffer);
+
+    if (read(fserv, buffer, sizeof(int)) == -1) exit(EXIT_FAILURE);
+    int fhandle = atoi(buffer);
+
+    if (read(fserv, buffer, sizeof(int)) == -1) exit(EXIT_FAILURE);
+    size_t len = (size_t) atoi(buffer);
+
+    char read_b[sizeof(char) * len + 1]; 
+    memset(read_b, '\0', sizeof(read_b));
+
+    if (read(fserv, buffer, len) == -1) {
+        free(read_b);
+        exit(EXIT_FAILURE);
+    }
+
+    ssize_t read_bytes = tfs_read(fhandle, read_b, len);
+
+    int fcli = sessions[session_id].fhandler;
+    if (fcli < 0) {
+        exit(EXIT_FAILURE);
+    }
+
+    if (read_bytes < 0)  {
+        memset(buffer, '\0', sizeof(buffer));
+        sprintf(buffer, "%d", (int)read_bytes);
+
+        ssize_t write_size = write(fcli, buffer, sizeof(int));
+
+        if (write_size < 0) exit(EXIT_FAILURE);
+        if(close(fcli) == -1) exit(EXIT_FAILURE);
+        return;
+    }
+
+    memset(buffer, '\0', sizeof(buffer));
+
+    char send[sizeof(int) + (sizeof(char) * len) + 1];
+    memset(send, '\0', sizeof(send));
+    memset(aux_buffer, '\0', sizeof(aux_buffer));
+
+    sprintf(aux_buffer, "%d", (int)read_bytes);
+    memcpy(send, aux_buffer, sizeof(int));
+    memcpy(send + 4, read_b, (size_t)read_bytes);
+
+    ssize_t write_size = write(fcli, send, sizeof(int) + len);
+
+    if (write_size < 0) exit(EXIT_FAILURE);
 }
 
 int main(int argc, char **argv) {
@@ -152,12 +199,6 @@ int main(int argc, char **argv) {
         printf("[tfs_server] mkfifo failed: %s\n", strerror(errno));
         exit(EXIT_FAILURE);
     }
-    
-    /*
-    if ((fserv = open(server_pipe, O_RDONLY)) < 0)  {
-        printf("[tfs_server] Open failed : %s\n", strerror(errno));
-        return -1;
-    }*/
         
     assert(tfs_init() != -1);
 
@@ -202,11 +243,27 @@ int main(int argc, char **argv) {
 
             case (TFS_OP_CODE_UNMOUNT):
 
+                printf("[INFO - SERVER] Calling unmount...\n");
+
                 if (open_sessions == 0) {
                     printf("[ tfs_server ] tfs_mount: There are no open sessions, please open one before unmount\n");
                     return -1;
                 }
                 open_sessions--;
+
+                ssize_t ssid = read(fserv, buffer, sizeof(int));
+                if (ssid == -1) return -1;
+
+                // session_id
+                memcpy(aux_buffer, buffer, sizeof(int));
+
+                session_id = atoi(aux_buffer);  
+
+                if (close(fserv) == -1) return -1;
+                if (close(sessions[session_id].fhandler) == -1) return -1;
+
+                sessions[session_id].fhandler = -1;
+                sessions[session_id].session_id = -1;
 
                 // ir buscar a pipe do client com o session_id e responder através dela (assim sabe-se
                 // que sessão terminar
@@ -241,15 +298,11 @@ int main(int argc, char **argv) {
 
                 char fhandler_c = (char) (fhandler + '0');
 
-                fcli = open(sessions[session_id].name, O_WRONLY);
-
-                if (fcli < 0) return -1;
+                fcli = sessions[session_id].fhandler;
 
                 write_size = write(fcli, &fhandler_c, sizeof(char));
 
                 if (write_size < 0) return -1;
-
-                if(close(fcli) == -1) return -1;
 
                 // ...
 
@@ -258,7 +311,7 @@ int main(int argc, char **argv) {
             case (TFS_OP_CODE_CLOSE):
                 printf("[INFO - SERVER] Calling close...\n");
 
-                 if (read(fserv, buffer, sizeof(int)) == -1) return -1;
+                if (read(fserv, buffer, sizeof(int)) == -1) return -1;
                 session_id = atoi(buffer);
 
                 if (read(fserv, buffer, sizeof(int)) == -1) return -1;
@@ -268,17 +321,14 @@ int main(int argc, char **argv) {
 
                 if (fclose < 0) return -1;
 
-                fcli = open(sessions[session_id].name, O_WRONLY);
-                if (fcli < 0) return -1;
+                fcli = sessions[session_id].fhandler;
 
                 memset(buffer, '\0', sizeof(buffer));
                 sprintf(buffer, "%d", fclose);
 
                 write_size = write(fcli, buffer, sizeof(int));
 
-                if (write_size < 0) return -1;
-
-                if(close(fcli) == -1) return -1;              
+                if (write_size < 0) return -1;           
 
             break;
 
@@ -294,8 +344,7 @@ int main(int argc, char **argv) {
 
                 if (read(fserv, buffer, sizeof(int)) == -1) return -1;
                 size_t len = (size_t) atoi(buffer);
-
-                
+ 
                 memset(buffer, '\0', len);
                 if (read(fserv, buffer, len) == -1) return -1;
 
@@ -303,7 +352,7 @@ int main(int argc, char **argv) {
 
                 if (written < 0 ) return -1;
 
-                fcli = open(sessions[session_id].name, O_WRONLY);
+                fcli = sessions[session_id].fhandler;
                 if (fcli < 0) return -1;
 
                 memset(buffer, '\0', sizeof(buffer));
@@ -313,84 +362,13 @@ int main(int argc, char **argv) {
 
                 if (write_size < 0) return -1;
 
-                if(close(fcli) == -1) return -1;  
-                
-
-
             break;
 
             case (TFS_OP_CODE_READ):
 
                 printf("[INFO - SERVER] : Calling read...\n");
 
-                if (read(fserv, buffer, sizeof(int)) == -1) return -1;
-                session_id = atoi(buffer);
-
-                if (read(fserv, buffer, sizeof(int)) == -1) return -1;
-                fhandle = atoi(buffer);
-
-                if (read(fserv, buffer, sizeof(int)) == -1) return -1;
-                len = (size_t) atoi(buffer);
-
-                char *read_b = (char *)malloc((sizeof(char) * len) + 1); 
-
-                memset(read_b, '\0', len);
-
-                if (read(fserv, buffer, len) == -1) {
-                    free(read_b);
-                    return -1;
-                }
-
-                ssize_t read_bytes = tfs_read(fhandle, read_b, len);
-
-                fcli = open(sessions[session_id].name, O_WRONLY);
-                if (fcli < 0) {
-                    free(read_b);
-                    return -1;
-                }
-
-
-                if (read_bytes < 0 )  {
-
-                    memset(buffer, '\0', sizeof(buffer));
-                    sprintf(buffer, "%d", (int)read_bytes);
-
-                    write_size = write(fcli, buffer, sizeof(int));
-
-                    if(close(fcli) == -1) {
-                        free(read_b);
-                        return -1;
-                    }
-                    
-                    free(read_b);                 
-                    return 0;
-
-                }
-
-                memset(buffer, '\0', sizeof(buffer));
-
-                char *send = (char *)malloc(sizeof(int) + (sizeof(char) * len) + 1);
-                memset(send, '\0', 4 + len + 1);
-
-                memset(aux_buffer, '\0', sizeof(aux_buffer));
-
-                sprintf(aux_buffer, "%d", (int)read_bytes);
-                memcpy(send, aux_buffer, sizeof(int));
-                memcpy(send + 4, read_b, (size_t)read_bytes);
-
-                write_size = write(fcli, send, sizeof(int) + (size_t)read_bytes);
-
-                if (write_size < 0) {
-                    free(read_b);
-                    free(send);
-                    return -1;
-                }
-
-                if (close(fcli) == -1) {
-                    free(read_b);
-                    free(send);
-                    return -1;
-                }               
+                tfs_handle_read(fserv);              
 
             break;
 
