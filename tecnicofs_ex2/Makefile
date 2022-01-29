@@ -7,7 +7,7 @@ CC ?= gcc
 LD ?= gcc
 
 # space separated list of directories with header files
-INCLUDE_DIRS := fs client .
+INCLUDE_DIRS := fs common client .
 # this creates a space separated list of -I<dir> where <dir> is each of the values in INCLUDE_DIRS
 INCLUDES = $(addprefix -I, $(INCLUDE_DIRS))
 

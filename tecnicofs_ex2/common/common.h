@@ -1,6 +1,17 @@
 #ifndef COMMON_H
 #define COMMON_H
 
+#include "tecnicofs_client_api.h"
+#include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <errno.h>
+#include <stddef.h>
+
 /* tfs_open flags */
 enum {
     TFS_O_CREAT = 0b001,
@@ -18,5 +29,9 @@ enum {
     TFS_OP_CODE_READ = 6,
     TFS_OP_CODE_SHUTDOWN_AFTER_ALL_CLOSED = 7
 };
+
+/* functions */
+
+void slait(char *buffer_c, size_t len, int fh);
 
 #endif /* COMMON_H */

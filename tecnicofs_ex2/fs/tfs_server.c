@@ -1,4 +1,5 @@
 #include "operations.h"
+#include "common/common.h"
 #include <string.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -27,11 +28,6 @@ static int open_sessions;
 static session_t sessions[S];
 static session_state_t free_sessions[S];
 
-static int debug = 0;
-
-void print_debug(char *str) {
-    if (debug) printf("%s\n", str);
-}
 
 int find_free_pos() {
 
@@ -56,17 +52,21 @@ int find_free_pos() {
 
 int tfs_handle_mount(char name[], int fserv) {
 
-    int fcli;
-    int free = 0;
+    int fcli, free = 0;
+    ssize_t n;
 
     memset(name, '\0', CLI_PIPE_SIZE + 1);
-    
-    ssize_t n = read(fserv, name, NAME_PIPE_SIZE);
 
+    slait(name, NAME_PIPE_SIZE, fserv);
+    
+    //ssize_t n = read(fserv, name, NAME_PIPE_SIZE);
+
+    /*
     if (n == -1) {
         printf("[ ERROR ] Reading : Failed\n");
         return -1;
     }
+    */
 
     if (open_sessions == S) {
         printf("[ tfs_server ] tfs_mount: Reached limit number of sessions, please wait\n");
@@ -74,8 +74,8 @@ int tfs_handle_mount(char name[], int fserv) {
     }
 
     if ((fcli = open(name, O_WRONLY)) < 0) {
-            printf("[ tfs_server ] tfs_mount : Failed to open client pipe\n");
-            return -1;
+        printf("[ tfs_server ] tfs_mount : Failed to open client pipe\n");
+        return -1;
     }
 
     open_sessions++;
