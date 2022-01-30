@@ -10,7 +10,7 @@ void slait(char *buffer_c, size_t len, int fh) {
 
     while(1) {
 
-        written_tfs = read(fh, buffer_c + written_count, len);        
+        written_tfs = read(fh, buffer_c + written_count, len);  
 
         if (written_tfs == -1) {
             printf("[ERROR - API] Error reading file\n");

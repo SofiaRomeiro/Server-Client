@@ -345,6 +345,7 @@ int remove_from_open_file_table(int fhandle) {
 
     if (open_files == 0) pthread_cond_signal(&open_files_cond);
     pthread_mutex_unlock(&open_files_var_mutex);
+
     return 0;
 }
 
@@ -377,6 +378,7 @@ void set_cond_wait() {
     while(get_open_files() != 0) {
         pthread_cond_wait(&open_files_cond, &open_files_var_mutex);
     }
+    
 }
 
 

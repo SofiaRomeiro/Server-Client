@@ -24,6 +24,7 @@ int tfs_init() {
 }
 
 int tfs_destroy() {
+    printf("[INFO - OPERATIONS] Calling tfs_destroy...\n");
     state_destroy();
     return 0;
 }
@@ -176,6 +177,8 @@ int tfs_close(int fhandle) {
     int r = remove_from_open_file_table(fhandle);
     if (pthread_mutex_unlock(&single_global_lock) != 0)
         return -1;
+
+    printf("[INFO - OPERATIONS] r = %d\n", r);
 
     return r;
 }
