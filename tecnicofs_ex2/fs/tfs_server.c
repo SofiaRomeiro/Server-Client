@@ -10,8 +10,10 @@
 #include <assert.h>
 #include <signal.h>
 
-#define SIZE 99
+// Specifies the max number of sessions existing simultaneously
 #define S 20
+
+#define SIZE 99
 #define PERMISSIONS 0777
 
 #define CLI_PIPE_SIZE 39
@@ -21,8 +23,8 @@
 
 typedef struct {
     int session_id;
-    int fhandler;
     char name[NAME_SIZE];
+    int fhandler;    
 } session_t;
 
 typedef enum {FREE_POS = 1, TAKEN_POS = 0} session_state_t;
@@ -33,72 +35,131 @@ static session_state_t free_sessions[S];
 
 int find_free_pos() {
 
-    int free = -1;
+    // This would be the number of the session that will be created, if possible
+    int session_free = -1; 
     
     for (int i = 0; i < S; i++) {
         if (free_sessions[i] == FREE_POS) {            
-            free = i;
+            session_free = i;
             break;
         }
     }
 
-    if (free == -1) {
-        printf("[ tfs_server ] All positions occupied\n");
-        exit(EXIT_FAILURE);
+    // No sessions available, all positions are marked as "TAKEN"
+    if (session_free == -1) {
+        printf("[ERROR - SERVER] Server is full, please try again\n");
+        return session_free;
     } 
 
-    free_sessions[free] = TAKEN_POS;
+    free_sessions[session_free] = TAKEN_POS;
     
-    return free;
+    return session_free;
 }
 
 void tfs_handle_mount(char name[], int fserv) {
 
-    int fcli, free = 0;
-    ssize_t n = 0;
+    int fcli, free_session_id = 0;
+    ssize_t ret = 0;
     char session_id_cli[sizeof(int)];
 
     memset(session_id_cli, '\0', sizeof(session_id_cli));
     memset(name, '\0', CLI_PIPE_SIZE + 1);
 
-    // can't use slait because we don't know the exact size to read
-    
-    n = read(fserv, name, NAME_PIPE_SIZE);
-
-    if (n == -1) {
-        printf("[ ERROR ] Reading : Failed\n");
+    // READ CLIENT'S PIPE NAME    
+    ret = slait(name, NAME_SIZE, fserv);
+    if (ret == -1) {
+        printf("[ERROR - SERVER] Reading : Failed : %s\n", strerror(errno));
         exit(EXIT_FAILURE);
     }   
 
-    if (open_sessions == S) {
-        printf("[ tfs_server ] tfs_mount: Reached limit number of sessions, please wait\n");
+    // OPEN CLIENT'S PIPE
+    if ((fcli = open(name, O_WRONLY)) < 0) {
+        printf("[ERROR - SERVER] Failed : %s\n", strerror(errno));
         exit(EXIT_FAILURE);
     }
 
-    if ((fcli = open(name, O_WRONLY)) < 0) {
-        printf("[ tfs_server ] tfs_mount : Failed to open client pipe\n");
+    if (open_sessions == S) {
+        printf("[ERROR - SERVER] Reached limit number of sessions, please wait\n");
+        
+        // INFORM CLIENT THAT THE SESSION CAN'T BE CREATED
+        sprintf(session_id_cli, "%d", -1);
+        if (write(fcli, session_id_cli, sizeof(int)) == -1) {
+            printf("[ERROR - SERVER] Writing to client : %s\n", strerror(errno));
+        }
+        if (close(fcli) == -1) {
+            printf("[ERROR - SERVER] Closing pipe : %s\n", strerror(errno));
+            exit(EXIT_FAILURE);
+        }
+        return;
+    }    
+
+    free_session_id = find_free_pos();
+
+    // ERROR ASSIGNING SESSION ID
+    if (free_session_id == -1) {
+        printf("[ERROR - SERVER] %s\n", strerror(errno));
+        sprintf(session_id_cli, "%d", free_session_id);
+        if (write(fcli, session_id_cli, sizeof(int)) == -1) {
+            printf("[ERROR - SERVER] Writing to client : %s\n", strerror(errno));
+        }
+        return;
+    }
+
+    session_t *session = &(sessions[free_session_id]);
+
+    memset(session->name, '\0', sizeof(session->name));
+
+    session->session_id = free_session_id;
+    session->fhandler = fcli;    
+    memcpy(session->name, name, strlen(name));
+
+    // SERVER RESPONSE TO CLIENT
+
+    sprintf(session_id_cli, "%d", free_session_id);
+    ret = write(fcli, session_id_cli, sizeof(int));
+
+    if (ret == -1) {
+        printf("[ERROR - SERVER] Writing : %s\n", strerror(errno));
         exit(EXIT_FAILURE);
     }
 
     open_sessions++;
+}
 
-    free = find_free_pos();
+void tfs_handle_unmount(int fserv) {
 
-    session_t *session = &(sessions[free]);
+    char buffer[SIZE];
+    char aux[SIZE];
+    memset(buffer, '\0', SIZE);
+    memset(aux, '\0', SIZE);
 
-    memset(session->name, '\0', sizeof(session->name));
+    // READ SERVER MESSAGE
+    ssize_t ret = slait(buffer, sizeof(int), fserv);
+    if (ret == -1) {
+        printf("[ERROR - SERVER] %s\n", strerror(errno));
+    }
 
-    session->session_id = free;
-    session->fhandler = fcli;
-    sprintf(session_id_cli, "%d", free);
-    memcpy(session->name, name, strlen(name));
+    // SESSION ID
+    memcpy(aux, buffer, sizeof(int));
+    int session_id = atoi(aux);  
 
-    n = write(fcli, session_id_cli, sizeof(int));
+    if (open_sessions == 0 || session_id == -1) {
+        printf("[ERROR - SERVER] There are no open sessions, please open one before unmount\n");
+        // como dar handle nesta situação?
+        return;
+    }
 
-    if (n == -1) {
-        printf("[ ERROR ] Reading : Failed\n");
+    // CLOSE & ERASE CLIENT
+    if (close(sessions[session_id].fhandler) == -1){
+        printf("[ERROR - SERVER] %s\n", strerror(errno));
         exit(EXIT_FAILURE);
     }
+    sessions[session_id].fhandler = -1;
+    sessions[session_id].session_id = -1;
+    memset(sessions[session_id].name, '\0', NAME_SIZE);
+
+    open_sessions--;
+
 }
 
 void tfs_handle_read(int fserv) {
@@ -192,91 +253,71 @@ void tfs_handle_close(int fserv) {
     int fhandle = atoi(buffer);
 
     int fclose = tfs_close(fhandle);
-
-    if (fclose < 0) exit(EXIT_FAILURE);
+    if (fclose < 0) {
+        printf("[ERROR - SERVER] Error closing\n");
+        exit(EXIT_FAILURE);
+    } 
 
     int fcli = sessions[session_id].fhandler;
-
-    if (close(fcli) == -1) {
-        printf("[ERROR - SERVER] %s\n", strerror(errno));
-    }
-    fcli = open(sessions[session_id].name, O_WRONLY);
 
     memset(buffer, '\0', sizeof(buffer));
     sprintf(buffer, "%d", fclose);
 
-    printf("[INFO - SERVER] fcli = |%s|\n", buffer);
-
     ssize_t write_size = write(fcli, buffer, sizeof(int));  
-
-    printf("[ERROR - SERVER] (%ld) %s\n", write_size, strerror(errno));
-
     if (write_size < 0) exit(EXIT_FAILURE); 
-}
-
-void tfs_handle_unmount(int fserv) {
-
-    char buffer[SIZE];
-    char aux_buffer[SIZE];
-
-    if (open_sessions == 0) {
-        printf("[ tfs_server ] tfs_mount: There are no open sessions, please open one before unmount\n");
-        exit(EXIT_FAILURE);
-    }
-    open_sessions--;
-
-    slait(buffer, sizeof(int), fserv);
-
-    // session_id
-    memcpy(aux_buffer, buffer, sizeof(int));
-
-    int session_id = atoi(aux_buffer);  
-
-    if (close(sessions[session_id].fhandler) == -1){
-        printf("[ERROR - SERVER] %s\n", strerror(errno));
-        exit(EXIT_FAILURE);
-    } 
-
-    sessions[session_id].fhandler = -1;
-    sessions[session_id].session_id = -1;
 }
 
 void tfs_handle_open(int fserv) {
 
     char name[CLI_PIPE_SIZE + 1];
     char buffer[SIZE];
-    char aux_buffer[SIZE];
+    char aux[SIZE];
+
+    size_t max_size_for_open_message = 45; // int ssid, char[40] name, char flags
+    size_t len = 0;
 
     memset(name, '\0', sizeof(name));
     memset(buffer, '\0', sizeof(buffer));
-    memset(aux_buffer, '\0', sizeof(aux_buffer));
+    memset(aux, '\0', sizeof(aux));
 
-    ssize_t size_read = read(fserv, buffer, SIZE);
-    if (size_read == -1) exit(EXIT_FAILURE);
+    ssize_t size_read = slait(buffer, max_size_for_open_message, fserv);
+    if (size_read == -1) {
+        printf("[ERROR - SERVER] Reading : %s\n", strerror(errno));
+        exit(EXIT_FAILURE);
+    } 
 
-    // session_id
-    memcpy(aux_buffer, buffer, sizeof(int));
-
-    int session_id = atoi(aux_buffer);  
+    // SESSION_ID
+    memcpy(aux, buffer, sizeof(int));
+    len += sizeof(int);
+    int session_id = atoi(aux);      
     
-    // name
-    memcpy(name, buffer + 4, NAME_PIPE_SIZE);
-    memset(aux_buffer, '\0', sizeof(aux_buffer));
+    // NAME
+    memcpy(name, buffer + len, NAME_SIZE);
+    len += NAME_SIZE;
+    memset(aux, '\0', sizeof(aux));
 
-    // flags
-    memcpy(aux_buffer, buffer + 44, sizeof(int));
-    int flags = atoi(aux_buffer);
+    // FLAGS
+    memcpy(aux, buffer + len, sizeof(int));
+    len += sizeof(int);
+    int flags = atoi(aux);
 
-    int fhandler = tfs_open(name, flags);
-    if (fhandler == -1) exit(EXIT_FAILURE);
+    // OPEN FILE IN TFS
+    int tfs_fhandler = tfs_open(name, flags);
+    if (tfs_fhandler == -1) {
+        printf("[ERROR - SERVER] Open tfs\n");
+        exit(EXIT_FAILURE);
+    } 
 
-    char fhandler_c = (char) (fhandler + '0');
+    int fcli = sessions[session_id].fhandler; //this is client api fhandler
 
-    int fcli = sessions[session_id].fhandler;
+    memset(aux, '\0', SIZE);
+    sprintf(aux, "%d", tfs_fhandler);
 
-    ssize_t write_size = write(fcli, &fhandler_c, sizeof(char));
-
-    if (write_size < 0) exit(EXIT_FAILURE);
+    ssize_t write_size = write(fcli, aux, sizeof(int));
+    if (write_size < 0) {
+        printf("[ERROR - SERVER] Error writing : %s\n", strerror(errno));
+        exit(EXIT_FAILURE);
+    } 
 
 }
 
@@ -316,43 +357,51 @@ int main(int argc, char **argv) {
     char buffer[SIZE];
     char name[CLI_PIPE_SIZE + 1];
 
-    for (int i = 0; i < S; i++) {
-        free_sessions[i] = FREE_POS;
-    }
-
     open_sessions = 0;
     memset(buffer, '\0', SIZE);
-    memset(name, '\0', CLI_PIPE_SIZE + 1);    
+    memset(name, '\0', CLI_PIPE_SIZE + 1); 
+
+    for (int i = 0; i < S; i++) {
+        free_sessions[i] = FREE_POS;
+        sessions[i].fhandler = -1;
+        sessions[i].session_id = -1;
+        memset(sessions[i].name, '\0', NAME_SIZE);
+    }   
 
     if (argc < 2) {
-        printf("Please specify the pathname of the server's pipe.\n");
+        printf("[INFO - SERVER] Please specify the pathname of the server's pipe.\n");
         exit(EXIT_FAILURE);
     }
 
+    // CRIACAO DO SERVIDOR 
+
     server_pipe = argv[1];
 
-    printf("Starting TecnicoFS server with pipe called %s\n", server_pipe);
+    printf("[INFO - SERVER] Starting TecnicoFS server with pipe called %s\n", server_pipe);
 
     if (unlink(server_pipe) != 0 && errno != ENOENT) {
-        fprintf(stderr, "[ERR]: unlink(%s) failed: %s\n", server_pipe, strerror(errno));
+        fprintf(stderr, "[ERROR - SERVER]: unlink(%s) failed: %s\n", server_pipe, strerror(errno));
         exit(EXIT_FAILURE);
     }
 
     if (mkfifo(server_pipe, PERMISSIONS) != 0) {
-        printf("[tfs_server] mkfifo failed: %s\n", strerror(errno));
+        printf("[ERROR - SERVER] mkfifo failed: %s\n", strerror(errno));
         exit(EXIT_FAILURE);
     }
 
     if (signal(SIGPIPE, SIG_IGN) == SIG_ERR) {
-        printf("[ERROR] %s\n", strerror(errno));
-        return -1;
+        printf("[ERROR - SERVER] %s\n", strerror(errno));
+        exit(EXIT_FAILURE);
     }
         
-    assert(tfs_init() != -1);
+    if (tfs_init() == -1) {
+        printf("[ERROR - SERVER] TFS init failed\n");
+        exit(EXIT_FAILURE);
+    }
 
     if ((fserv = open(server_pipe, O_RDONLY)) < 0) {
-        printf("[ ERROR ] Open server : %s\n", strerror(errno));
-        return -1;
+        printf("[ERROR - SERVER] Open server : %s\n", strerror(errno));
+        exit(EXIT_FAILURE);
     }        
 
     // ----------------------------------------- START RESPONDING TO REQUESTS --------------------------------------
