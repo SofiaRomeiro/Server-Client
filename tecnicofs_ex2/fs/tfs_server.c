@@ -11,17 +11,18 @@
 #include <signal.h>
 
 #define SIZE 99
-
-#define PERMISSIONS 0777
-#define CLI_PIPE_SIZE 39
 #define S 20
-#define SIZE_OF_CHAR 1
-#define NAME_PIPE_SIZE 40
+#define PERMISSIONS 0777
+
+#define CLI_PIPE_SIZE 39
+#define SIZE_OF_CHAR sizeof(char)
+#define SIZE_OF_INT sizeof(int)
+#define NAME_SIZE 40
 
 typedef struct {
     int session_id;
     int fhandler;
-    char name[40];
+    char name[NAME_SIZE];
 } session_t;
 
 typedef enum {FREE_POS = 1, TAKEN_POS = 0} session_state_t;
@@ -29,7 +30,6 @@ typedef enum {FREE_POS = 1, TAKEN_POS = 0} session_state_t;
 static int open_sessions;
 static session_t sessions[S];
 static session_state_t free_sessions[S];
-
 
 int find_free_pos() {
 
@@ -232,10 +232,6 @@ void tfs_handle_unmount(int fserv) {
 
     int session_id = atoi(aux_buffer);  
 
-    if (close(fserv) == -1) {
-        printf("[ERROR - SERVER] %s\n", strerror(errno));
-        exit(EXIT_FAILURE);
-    } 
     if (close(sessions[session_id].fhandler) == -1){
         printf("[ERROR - SERVER] %s\n", strerror(errno));
         exit(EXIT_FAILURE);
@@ -314,8 +310,6 @@ void tfs_handle_shutdown_after_all_close(int fserv) {
 
 int main(int argc, char **argv) {
 
-    /* TO DO */
-
     int fserv, command;
     ssize_t n;
     char *server_pipe;
@@ -350,7 +344,7 @@ int main(int argc, char **argv) {
     }
 
     if (signal(SIGPIPE, SIG_IGN) == SIG_ERR) {
-        printf("[ERROR]\n");
+        printf("[ERROR] %s\n", strerror(errno));
         return -1;
     }
         
@@ -369,20 +363,17 @@ int main(int argc, char **argv) {
 
         n = slait(buffer, sizeof(char), fserv);
 
-        //printf("[INFO - SERVER] Buffer : %s\n", buffer);
-
         if (n == 0) { //EOF
             if (close(fserv) == -1) return -1;
             if ((fserv = open(server_pipe, O_RDONLY)) == -1) 
                 return -1;
             continue;            
-        } else if (n == -1 && errno == EBADF) {
+        } 
+        else if (n == -1 && errno == EBADF) {
             fserv = open(server_pipe, O_RDONLY);
             continue;
-     /*   } else if (n == -1 && errno == ENOENT) {
-            fserv = open(server_pipe, O_RDONLY);
-            continue;
-       */ } else if (n == -1) {
+        } 
+        else if (n == -1) {
             printf("[ ERROR ] Reading : %s\n", strerror(errno));
             return -1;
         }
