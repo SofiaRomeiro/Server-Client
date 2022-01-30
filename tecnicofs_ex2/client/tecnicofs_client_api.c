@@ -1,31 +1,17 @@
 #include "tecnicofs_client_api.h"
-#include <stdio.h>
-#include <string.h>
-#include <stdlib.h>
-#include <unistd.h>
-#include <fcntl.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <errno.h>
 
 #define PERMISSIONS 0777
 #define BUFFER_SIZE 40
-
-static int debug = 0;
 
 static int fcli;
 static int fserv;
 static int session_id = -1;
 
-void print_debug(char *str) {
-    if (debug) printf("%s\n", str);
-}
-
 int tfs_mount(char const *client_pipe_path, char const *server_pipe_path) {
 
     printf("[INFO - API] Calling api mount...\n");
 
-    char buffer[4 + BUFFER_SIZE + 1];
+    char buffer[sizeof(int) + BUFFER_SIZE];
     memset(buffer, '\0', sizeof(buffer));
 
      // named pipe - server
@@ -37,12 +23,11 @@ int tfs_mount(char const *client_pipe_path, char const *server_pipe_path) {
     size_t str_len = strlen(client_pipe_path);
 
     char code = TFS_OP_CODE_MOUNT + '0';
-
     memcpy(buffer, &code, sizeof(char));
 
-    memcpy(buffer + 1, client_pipe_path, str_len);
+    memcpy(buffer + sizeof(char), client_pipe_path, str_len);
 
-    if (write(fserv, buffer, strlen(buffer)) == -1) {
+    if (write(fserv, buffer, BUFFER_SIZE) == -1) {
         printf("[tfs_mount] Error writing\n");
         return -1;
     }        
@@ -78,8 +63,8 @@ int tfs_unmount() {
 
     printf("[INFO - API] Calling api unmount...\n");
     
-    char buffer[10];
-    char aux[10];
+    char buffer[5];
+    char aux[5];
     memset(buffer, '\0', sizeof(buffer));
     memset(aux, '\0', sizeof(aux));
 
@@ -91,7 +76,7 @@ int tfs_unmount() {
     // SESSION_ID
 
     sprintf(aux, "%d", session_id);
-    memcpy(buffer + 1, aux, sizeof(int));
+    memcpy(buffer + sizeof(char), aux, sizeof(int));
 
     // SEND MSG TO SERVER
 
@@ -164,7 +149,7 @@ int tfs_close(int fhandle) {
 
     printf("[INFO - API] Calling api close...\n");
 
-    char buffer[10];
+    char buffer[9];
     char aux[10];
     memset(buffer, '\0', sizeof(buffer));
     memset(aux, '\0', sizeof(aux));
@@ -186,10 +171,6 @@ int tfs_close(int fhandle) {
     memcpy(buffer + 5, aux, sizeof(int));  
 
     // SEND MESSAGE
-    if (fserv  < 0) {
-        printf("[tfs_open] Error opening client\n");
-        return -1;
-    }
 
     ssize_t size_written = write(fserv, buffer, sizeof(buffer));
 

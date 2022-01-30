@@ -21,6 +21,7 @@
 typedef struct {
     int session_id;
     int fhandler;
+    char name[40];
 } session_t;
 
 typedef enum {FREE_POS = 1, TAKEN_POS = 0} session_state_t;
@@ -85,9 +86,12 @@ void tfs_handle_mount(char name[], int fserv) {
 
     session_t *session = &(sessions[free]);
 
+    memset(session->name, '\0', sizeof(session->name));
+
     session->session_id = free;
     session->fhandler = fcli;
     sprintf(session_id_cli, "%d", free);
+    memcpy(session->name, name, strlen(name));
 
     n = write(fcli, session_id_cli, sizeof(int));
 
@@ -192,6 +196,11 @@ void tfs_handle_close(int fserv) {
     if (fclose < 0) exit(EXIT_FAILURE);
 
     int fcli = sessions[session_id].fhandler;
+
+    if (close(fcli) == -1) {
+        printf("[ERROR - SERVER] %s\n", strerror(errno));
+    }
+    fcli = open(sessions[session_id].name, O_WRONLY);
 
     memset(buffer, '\0', sizeof(buffer));
     sprintf(buffer, "%d", fclose);
