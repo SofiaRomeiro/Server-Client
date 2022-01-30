@@ -70,8 +70,8 @@ int tfs_unmount() {
 
     printf("[INFO - API] Calling api unmount...\n");
     
-    char buffer[5];
-    char aux[5];
+    char buffer[sizeof(char) + sizeof(int)];
+    char aux[sizeof(char) + sizeof(int)];
     memset(buffer, '\0', sizeof(buffer));
     memset(aux, '\0', sizeof(aux));
 
@@ -109,7 +109,7 @@ int tfs_open(char const *name, int flags) {
 
     printf("[INFO - API] Calling api open...\n");
     
-    char buffer[100];
+    char buffer[sizeof(char) + sizeof(int) + NAME_SIZE + sizeof(int)];
     memset(buffer, '\0', sizeof(buffer));
     char session_id_s[sizeof(int)];
     memset(session_id_s, '\0', sizeof(session_id_s));
@@ -163,7 +163,7 @@ int tfs_close(int fhandle) {
     printf("[INFO - API] Calling api close...\n");
 
     size_t len = 0;
-    char buffer[9];
+    char buffer[sizeof(char) + sizeof(int) + sizeof(int)]; // 2 * sizeof(int)??
     char aux[sizeof(int)];
     memset(buffer, '\0', sizeof(buffer));
     memset(aux, '\0', sizeof(aux));
@@ -193,7 +193,10 @@ int tfs_close(int fhandle) {
 
     // READ ANSWER
     memset(aux, '\0', sizeof(aux));
-    slait(aux, sizeof(int), fcli);
+    ssize_t ret = slait(aux, sizeof(int), fcli);
+    if (ret == -1) {
+        printf("[ERROR - API] Error reading : %s\n", strerror(errno));
+    } 
 
     int close = atoi(aux);
     if (close < 0) return -1;
@@ -205,10 +208,11 @@ ssize_t tfs_write(int fhandle, void const *buffer, size_t len) {
 
     printf("[INFO - API] Calling api write...\n");
     
-    size_t buffer_size = 1 + 4 + 4 + 4 + len + 1;
+    //size_t buffer_size = 1 + 4 + 4 + 4 + len + 1;
+    size_t buffer_size = sizeof(char) + (3 * sizeof(int)) + len + sizeof(char);
     char buffer_c[buffer_size];
     memset(buffer_c, '\0', sizeof(buffer));
-    char aux[10];
+    char aux[10]; //int + int + char??
     memset(aux, '\0', sizeof(aux));
 
     // OP_CODE
@@ -219,23 +223,23 @@ ssize_t tfs_write(int fhandle, void const *buffer, size_t len) {
     // SESSION_ID
 
     sprintf(aux, "%d", session_id);
-    memcpy(buffer_c + 1, aux, sizeof(int));
+    memcpy(buffer_c + sizeof(char), aux, sizeof(int));
 
     // FHANDLE
     
     memset(aux, '\0', sizeof(aux));
     sprintf(aux, "%d", fhandle);
-    memcpy(buffer_c + 5, aux, sizeof(int));
+    memcpy(buffer_c + sizeof(char) + sizeof(int), aux, sizeof(int));
 
     // LEN
 
     memset(aux, '\0', sizeof(aux));
     sprintf(aux, "%ld", len);
-    memcpy(buffer_c + 9, aux, sizeof(int));
+    memcpy(buffer_c + sizeof(char) + (2*sizeof(int)), aux, sizeof(int));
 
     // BUFFER WITH CONTENT
 
-    memcpy(buffer_c + 13, buffer, len);
+    memcpy(buffer_c + 13, buffer, len); // ??
 
     // SEND MSG TO SERVER
     if (fserv  < 0) {
@@ -246,12 +250,15 @@ ssize_t tfs_write(int fhandle, void const *buffer, size_t len) {
     ssize_t size_written = write(fserv, buffer_c, sizeof(buffer_c));
 
     if (size_written < sizeof(buffer_c)) {
-        printf("[ERROR - API] tfs_open error on writing");
+        printf("[ERROR - API] tfs_open error on writing\n");
     }
 
     memset(buffer_c, '\0', sizeof(buffer_c));
 
-    slait(buffer_c, len, fcli);
+    ssize_t ret = slait(buffer_c, len, fcli);
+    if (ret == -1) {
+        printf("[ERROR - API] Error reading : %s\n", strerror(errno));
+    }
 
     int written = atoi(buffer_c);
 
@@ -264,10 +271,10 @@ ssize_t tfs_read(int fhandle, void *buffer, size_t len) {
 
     printf("[INFO - API] Calling api read...\n");
 
-    size_t buffer_size = 1 + 4 + 4 + 4 + 1;
+    size_t buffer_size = (2 * sizeof(char)) + (3 * sizeof(int));
     char buffer_c[buffer_size];
     memset(buffer_c, '\0', sizeof(buffer_c));
-    char aux[10];
+    char aux[10]; //int + int + char??
     memset(aux, '\0', sizeof(aux));
 
     // OP_CODE
@@ -276,17 +283,17 @@ ssize_t tfs_read(int fhandle, void *buffer, size_t len) {
 
     // SESSION_ID
     sprintf(aux, "%d", session_id);
-    memcpy(buffer_c + 1, aux, sizeof(int));
+    memcpy(buffer_c + sizeof(char), aux, sizeof(int));
 
     // FHANDLE
     memset(aux, '\0', sizeof(aux));
     sprintf(aux, "%d", fhandle);
-    memcpy(buffer_c + 5, aux, sizeof(int));
+    memcpy(buffer_c + sizeof(char) + sizeof(int), aux, sizeof(int));
 
     // LEN
     memset(aux, '\0', sizeof(aux));
     sprintf(aux, "%ld", len);
-    memcpy(buffer_c + 9, aux, sizeof(int));
+    memcpy(buffer_c + sizeof(char) + (2*sizeof(int)), aux, sizeof(int));
 
     // SEND MSG TO SERVER
 
@@ -298,7 +305,10 @@ ssize_t tfs_read(int fhandle, void *buffer, size_t len) {
 
     memset(buffer_c, '\0', sizeof(buffer_c));
 
-    slait(buffer_c, sizeof(int), fcli);
+    ssize_t ret = slait(buffer_c, sizeof(int), fcli);
+    if (ret == -1) {
+        printf("[ERROR - API] Error reading : %s\n", strerror(errno));
+    }  
 
     memset(aux, '\0', sizeof(aux));
     memcpy(aux, buffer_c, sizeof(int));
@@ -306,7 +316,10 @@ ssize_t tfs_read(int fhandle, void *buffer, size_t len) {
     size_t read_code = (size_t) atoi(aux);
 
     memset(buffer_c, '\0', sizeof(buffer_c));
-    slait(buffer_c, read_code, fcli);
+    ret = slait(buffer_c, read_code, fcli);
+    if (ret == -1) {
+        printf("[ERROR - API] Error reading : %s\n", strerror(errno));
+    }  
 
     memcpy(buffer, buffer_c, read_code);
 
@@ -316,9 +329,9 @@ ssize_t tfs_read(int fhandle, void *buffer, size_t len) {
 
 int tfs_shutdown_after_all_closed() {
 
-    char buffer[5];
+    char buffer[sizeof(char) + sizeof(int)];
     memset(buffer, '\0', sizeof(buffer));
-    char aux[4];
+    char aux[sizeof(int)];
     memset(aux, '\0', sizeof(aux));
 
     // OP_CODE
@@ -327,21 +340,24 @@ int tfs_shutdown_after_all_closed() {
 
     // SESSION_ID
     sprintf(aux, "%d", session_id);
-    memcpy(buffer + 1, aux, sizeof(int));
+    memcpy(buffer + sizeof(char), aux, sizeof(int));
 
     ssize_t size_written = write(fserv, buffer, sizeof(buffer));
 
     if (size_written < sizeof(buffer)) {
-        printf("[ERROR - API] tfs_open error on writing");
+        printf("[ERROR - API] tfs_open error on writing\n");
     }
 
     memset(aux, '\0', sizeof(aux));
 
-    slait(aux, sizeof(int), fcli);
+    ssize_t ret = slait(aux, sizeof(int), fcli);
+    if (ret == -1) {
+        printf("[ERROR - API] Error reading : %s\n", strerror(errno));
+    } 
 
-    int ret = atoi(aux);
+    int ret_aux = atoi(aux);
 
-    if (ret < 0) return -1;
+    if (ret_aux < 0) return -1;
 
 
     return -1;

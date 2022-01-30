@@ -168,13 +168,27 @@ void tfs_handle_read(int fserv) {
     memset(buffer, '\0', sizeof(buffer));
     memset(aux_buffer, '\0', sizeof(aux_buffer));
 
-    slait(buffer, sizeof(int), fserv);
+    ssize_t ret;
+
+    ret = slait(buffer, sizeof(int), fserv);
+    if (ret == -1) {
+        printf("[ERROR - SERVER] %s\n", strerror(errno));
+    }
+
     int session_id = atoi(buffer);
 
-    slait(buffer, sizeof(int), fserv);
+    ret = slait(buffer, sizeof(int), fserv);
+    if (ret == -1) {
+        printf("[ERROR - SERVER] %s\n", strerror(errno));
+    }
+
     int fhandle = atoi(buffer);
 
-    slait(buffer, sizeof(int), fserv);
+    ret = slait(buffer, sizeof(int), fserv);
+    if (ret == -1) {
+        printf("[ERROR - SERVER] %s\n", strerror(errno));
+    }
+
     size_t len = (size_t) atoi(buffer);
 
     char read_b[sizeof(char) * len + 1]; 
@@ -215,6 +229,7 @@ void tfs_handle_read(int fserv) {
 void tfs_handle_write(int fserv) {
 
     char buffer[SIZE];
+    ssize_t ret;
 
     if (read(fserv, buffer, sizeof(int)) == -1) exit(EXIT_FAILURE);
     int session_id = atoi(buffer);
@@ -222,11 +237,18 @@ void tfs_handle_write(int fserv) {
     if (read(fserv, buffer, sizeof(int)) == -1) exit(EXIT_FAILURE);
     int fhandle = atoi(buffer);
 
-    slait(buffer, sizeof(int), fserv);
+    ret = slait(buffer, sizeof(int), fserv);
+    if (ret == -1) {
+        printf("[ERROR - SERVER] %s\n", strerror(errno));
+    }
+
     size_t len = (size_t) atoi(buffer);
 
     memset(buffer, '\0', len);
-    slait(buffer, len, fserv);
+    ret = slait(buffer, len, fserv);
+    if (ret == -1) {
+        printf("[ERROR - SERVER] %s\n", strerror(errno));
+    }
 
     ssize_t written = tfs_write(fhandle, buffer, len);
 
@@ -245,11 +267,20 @@ void tfs_handle_write(int fserv) {
 void tfs_handle_close(int fserv) {
 
     char buffer[SIZE];
+    ssize_t ret;
 
-    slait(buffer, sizeof(int), fserv);
+    ret = slait(buffer, sizeof(int), fserv);
+    if (ret == -1) {
+        printf("[ERROR - SERVER] %s\n", strerror(errno));
+    }
+
     int session_id = atoi(buffer);
 
-    slait(buffer, sizeof(int), fserv);
+    ret = slait(buffer, sizeof(int), fserv);
+    if (ret == -1) {
+        printf("[ERROR - SERVER] %s\n", strerror(errno));
+    }
+    
     int fhandle = atoi(buffer);
 
     int fclose = tfs_close(fhandle);
