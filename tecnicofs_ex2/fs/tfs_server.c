@@ -146,7 +146,7 @@ void tfs_handle_read(int fserv) {
     memcpy(send, aux_buffer, sizeof(int));
     memcpy(send + 4, read_b, (size_t)read_bytes);
 
-    ssize_t write_size = write(fcli, send, sizeof(int) + len);
+    ssize_t write_size = write(fcli, send, sizeof(int) + (size_t)read_bytes);
 
     if (write_size < 0) exit(EXIT_FAILURE);
 }
@@ -319,7 +319,7 @@ int main(int argc, char **argv) {
     int fserv, command;
     ssize_t n;
     char *server_pipe;
-    char buffer[SIZE + 1];
+    char buffer[SIZE];
     char name[CLI_PIPE_SIZE + 1];
 
     for (int i = 0; i < S; i++) {
@@ -327,7 +327,7 @@ int main(int argc, char **argv) {
     }
 
     open_sessions = 0;
-    memset(buffer, '\0', SIZE + 1);
+    memset(buffer, '\0', SIZE);
     memset(name, '\0', CLI_PIPE_SIZE + 1);    
 
     if (argc < 2) {
@@ -356,8 +356,10 @@ int main(int argc, char **argv) {
         
     assert(tfs_init() != -1);
 
-    if ((fserv = open(server_pipe, O_RDONLY)) < 0) 
+    if ((fserv = open(server_pipe, O_RDONLY)) < 0) {
+        printf("[ ERROR ] Open server : %s\n", strerror(errno));
         return -1;
+    }        
 
     // ----------------------------------------- START RESPONDING TO REQUESTS --------------------------------------
 
@@ -365,20 +367,27 @@ int main(int argc, char **argv) {
 
         memset(buffer, '\0', SIZE);
 
-        // can't use salit because we need read() return value
-        n = read(fserv, buffer, sizeof(char));
+        n = slait(buffer, sizeof(char), fserv);
+
+        //printf("[INFO - SERVER] Buffer : %s\n", buffer);
 
         if (n == 0) { //EOF
             if (close(fserv) == -1) return -1;
             if ((fserv = open(server_pipe, O_RDONLY)) == -1) 
                 return -1;
             continue;            
-        }
-
-        if (n == -1) {
-            printf("[ ERROR ] Reading : Failed\n");
+        } else if (n == -1 && errno == EBADF) {
+            fserv = open(server_pipe, O_RDONLY);
+            continue;
+     /*   } else if (n == -1 && errno == ENOENT) {
+            fserv = open(server_pipe, O_RDONLY);
+            continue;
+       */ } else if (n == -1) {
+            printf("[ ERROR ] Reading : %s\n", strerror(errno));
             return -1;
         }
+
+        printf("[INFO - SERVER] Open files atm = %d\n", open_sessions);
 
         command = atoi(buffer);
 

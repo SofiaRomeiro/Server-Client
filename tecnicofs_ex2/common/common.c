@@ -4,22 +4,26 @@
 /*
 Sleep + Wait
 */
-void slait(char *buffer_c, size_t len, int fh) {
+ssize_t slait(char *buffer_c, size_t len, int fh) {
 
     ssize_t written_count = 0, written_tfs = 0;
+
+    printf("[INFO - SLAIT] len = %ld\n", len);
 
     while(1) {
 
         written_tfs = read(fh, buffer_c + written_count, len);  
 
+        printf("[INFO - SLAIT] written = %ld\n", written_tfs);
+
         if (written_tfs == -1) {
-            printf("[ERROR - API] Error reading file\n");
-            exit(EXIT_FAILURE);
+            printf("[ERROR - SLAIT] Error reading file, %s\n", strerror(errno));
+            return written_tfs;
         }
 
         else if (written_tfs == 0) {
-            printf("[INFO - API] Slait EOF\n");
-            return;
+            printf("[INFO - SLAIT] Slait EOF\n");
+            return written_tfs;
         }
 
         written_count += written_tfs;
@@ -27,4 +31,5 @@ void slait(char *buffer_c, size_t len, int fh) {
         if (written_count >= len)
             break;
     }
+    return written_tfs;
 }

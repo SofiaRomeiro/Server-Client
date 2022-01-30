@@ -14,18 +14,18 @@ int tfs_mount(char const *client_pipe_path, char const *server_pipe_path) {
     char buffer[sizeof(int) + BUFFER_SIZE];
     memset(buffer, '\0', sizeof(buffer));
 
-     // named pipe - server
-    if ((fserv = open(server_pipe_path, O_WRONLY)) < 0) {
-        printf("[INFO - tfs_mount] Error opening server: %s\n", strerror(errno));
-        return -1;
-    }
-
     size_t str_len = strlen(client_pipe_path);
 
     char code = TFS_OP_CODE_MOUNT + '0';
     memcpy(buffer, &code, sizeof(char));
 
     memcpy(buffer + sizeof(char), client_pipe_path, str_len);
+
+     // named pipe - server
+    if ((fserv = open(server_pipe_path, O_WRONLY)) < 0) {
+        printf("[INFO - tfs_mount] Error opening server: %s\n", strerror(errno));
+        return -1;
+    }
 
     if (write(fserv, buffer, BUFFER_SIZE) == -1) {
         printf("[tfs_mount] Error writing\n");

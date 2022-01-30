@@ -32,6 +32,6 @@ enum {
 
 /* functions */
 
-void slait(char *buffer_c, size_t len, int fh);
+ssize_t slait(char *buffer_c, size_t len, int fh);
 
 #endif /* COMMON_H */
