@@ -17,12 +17,12 @@
 #define CLI_PIPE_SIZE 39
 #define SIZE_OF_CHAR sizeof(char)
 #define SIZE_OF_INT sizeof(int)
-#define NAME_SIZE 40
+#define NAME_PIPE_SIZE 40
 
 typedef struct {
     int session_id;
     int fhandler;
-    char name[NAME_SIZE];
+    char name[NAME_PIPE_SIZE];
 } session_t;
 
 typedef enum {FREE_POS = 1, TAKEN_POS = 0} session_state_t;
