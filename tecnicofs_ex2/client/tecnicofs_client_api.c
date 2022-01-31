@@ -15,8 +15,6 @@ int tfs_mount(char const *client_pipe_path, char const *server_pipe_path) {
     char buffer[sizeof(char) + NAME_SIZE];
     memset(buffer, '\0', sizeof(buffer));
 
-    //size_t str_len = strlen(client_pipe_path);
-
     // WRITE MESSAGE TO SERVER 
 
     // OP_CODE
@@ -58,10 +56,14 @@ int tfs_mount(char const *client_pipe_path, char const *server_pipe_path) {
     ssize_t ret = slait(buffer, sizeof(int), fcli); 
     if (ret == -1) {
         printf("[ERROR - API] Error reading : %s\n", strerror(errno));
+        return -1;
     }  
 
     session_id = atoi(buffer); 
-    if (session_id < 0) return -1;
+    if (session_id < 0) {
+        printf("[ERROR - API] Invalid session id\n");
+        return -1;
+    }
 
     return 0;
 }
@@ -357,9 +359,7 @@ int tfs_shutdown_after_all_closed() {
     } 
 
     int ret_aux = atoi(aux);
-
     if (ret_aux < 0) return -1;
-
 
     return -1;
 }
