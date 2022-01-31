@@ -58,10 +58,14 @@ int tfs_mount(char const *client_pipe_path, char const *server_pipe_path) {
     ssize_t ret = slait(buffer, sizeof(int), fcli); 
     if (ret == -1) {
         printf("[ERROR - API] Error reading : %s\n", strerror(errno));
+        return -1;
     }  
 
     session_id = atoi(buffer); 
-    if (session_id < 0) return -1;
+    if (session_id < 0) {
+        printf("[ERROR - API] Invalid session id\n");
+        return -1;
+    }
 
     return 0;
 }

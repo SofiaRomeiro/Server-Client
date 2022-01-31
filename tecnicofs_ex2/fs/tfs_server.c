@@ -11,7 +11,7 @@
 #include <signal.h>
 
 // Specifies the max number of sessions existing simultaneously
-#define S 20
+#define S 1
 
 #define SIZE 100
 #define PERMISSIONS 0777
@@ -31,6 +31,10 @@ typedef enum {FREE_POS = 1, TAKEN_POS = 0} session_state_t;
 static int open_sessions;
 static session_t sessions[S];
 static session_state_t free_sessions[S];
+
+void handle_error() {
+
+}
 
 int find_free_pos() {
 
@@ -64,16 +68,23 @@ void tfs_handle_mount(char name[], int fserv) {
     memset(session_id_cli, '\0', sizeof(session_id_cli));
     memset(name, '\0', NAME_SIZE);
 
-    // READ CLIENT'S PIPE NAME    
+    // READ CLIENT'S PIPE NAME FROM SERVER PIPE 
     ret = slait(name, NAME_SIZE, fserv);
     if (ret == -1) {
         printf("[ERROR - SERVER] Reading : Failed : %s\n", strerror(errno));
+        // ERROR : READING CLIENT REQUEST
+        // CAUSES : EBADF, EINTR, ENOENT
+        // HANDLE : 
         exit(EXIT_FAILURE);
     }   
 
     // OPEN CLIENT'S PIPE
     if ((fcli = open(name, O_WRONLY)) < 0) {
         printf("[ERROR - SERVER] Failed : %s\n", strerror(errno));
+        // ERROR : OPEN CLIENT PIPE
+        // CAUSES : ENOENT, EINTR
+        // HANDLE : ENOENT -> keep trying until open is successfull
+        //          EINTR -> retry until success (TEMP_FAILURE_RETRY like)
         exit(EXIT_FAILURE);
     }
 
@@ -84,9 +95,21 @@ void tfs_handle_mount(char name[], int fserv) {
         sprintf(session_id_cli, "%d", -1);
         if (write(fcli, session_id_cli, sizeof(int)) == -1) {
             printf("[ERROR - SERVER] Writing to client : %s\n", strerror(errno));
+            // ERROR : WRITE ON CLIENT PIPE
+            // CAUSES : EPIPE, EBADF, ENOENT, EINTR
+            // HANDLE : EPIPE -> erase the client, declare him as dead
+            //          EBADF -> same handle as EPIPE?
+            //          ENOENT -> CLOSE AND OPEN CLIENT (?)
+            //          EINTR -> TEMP_FAILURE_RETRY like
         }
         if (close(fcli) == -1) {
             printf("[ERROR - SERVER] Closing pipe : %s\n", strerror(errno));
+            // ERROR : CLOSE CLIENT PIPE
+            // CAUSES : EPIPE, EBADF, ENOENT, EINTR
+            // HANDLE : EPIPE -> erase the client, declare him as dead
+            //          EBADF -> CLOSE AND OPEN CLIENT (?)
+            //          ENOENT -> CLOSE AND OPEN CLIENT (?)
+            //          EINTR -> TEMP_FAILURE_RETRY like
             exit(EXIT_FAILURE);
         }
         return;
@@ -100,6 +123,12 @@ void tfs_handle_mount(char name[], int fserv) {
         sprintf(session_id_cli, "%d", free_session_id);
         if (write(fcli, session_id_cli, sizeof(int)) == -1) {
             printf("[ERROR - SERVER] Writing to client : %s\n", strerror(errno));
+            // ERROR : WRITE ON CLIENT PIPE
+            // CAUSES : EPIPE, EBADF, ENOENT, EINTR
+            // HANDLE : EPIPE -> erase the client, declare him as dead
+            //          EBADF -> same handle as EPIPE?
+            //          ENOENT -> CLOSE AND OPEN CLIENT (?)
+            //          EINTR -> TEMP_FAILURE_RETRY like
         }
         return;
     }
@@ -116,9 +145,14 @@ void tfs_handle_mount(char name[], int fserv) {
 
     sprintf(session_id_cli, "%d", free_session_id);
     ret = write(fcli, session_id_cli, sizeof(int));
-
     if (ret == -1) {
         printf("[ERROR - SERVER] Writing : %s\n", strerror(errno));
+        // ERROR : WRITE ON CLIENT PIPE
+            // CAUSES : EPIPE, EBADF, ENOENT, EINTR
+            // HANDLE : EPIPE -> erase the client, declare him as dead
+            //          EBADF -> same handle as EPIPE?
+            //          ENOENT -> CLOSE AND OPEN CLIENT (?)
+            //          EINTR -> TEMP_FAILURE_RETRY like
         exit(EXIT_FAILURE);
     }
 
@@ -136,6 +170,11 @@ void tfs_handle_unmount(int fserv) {
     ssize_t ret = slait(buffer, sizeof(int), fserv);
     if (ret == -1) {
         printf("[ERROR - SERVER] %s\n", strerror(errno));
+        // ERROR : READING CLIENT REQUEST
+        // CAUSES : EBADF, EINTR, ENOENT
+        // HANDLE : EBADF -> SERVER ERROR, ????
+        //          EINTR -> try again
+        //          ENOENT -> same as EBADF ???
     }
 
     // SESSION ID
@@ -144,20 +183,32 @@ void tfs_handle_unmount(int fserv) {
 
     if (open_sessions == 0 || session_id == -1) {
         printf("[ERROR - SERVER] There are no open sessions, please open one before unmount\n");
-        // como dar handle nesta situação?
+        // ERROR : NO OPEN SESSIONS AKA INVALID SESSION
+        // CAUSES : NO CLIENTS HAVE DONE A SUCCESSFULL MOUNT 
+        // HANDLE : ignore client
         return;
     }
 
     // CLOSE & ERASE CLIENT
     if (close(sessions[session_id].fhandler) == -1){
         printf("[ERROR - SERVER] %s\n", strerror(errno));
+        // ERROR : CLOSE CLIENT PIPE
+            // CAUSES : EPIPE, EBADF, ENOENT, EINTR
+            // HANDLE : EPIPE -> erase the client, declare him as dead
+            //          EBADF -> CLOSE AND OPEN CLIENT (?)
+            //          ENOENT -> CLOSE AND OPEN CLIENT (?)
+            //          EINTR -> TEMP_FAILURE_RETRY like
         exit(EXIT_FAILURE);
     }
+
     sessions[session_id].fhandler = -1;
     sessions[session_id].session_id = -1;
     memset(sessions[session_id].name, '\0', NAME_SIZE);
 
     open_sessions--;
+    free_sessions[session_id] = FREE_POS;
+
+    printf("[INFO - SERVER] Open sessions on unmount = %d\n", open_sessions);
 
 }
 
@@ -173,6 +224,11 @@ void tfs_handle_read(int fserv) {
     ret = slait(buffer, sizeof(int), fserv);
     if (ret == -1) {
         printf("[ERROR - SERVER] %s\n", strerror(errno));
+        // ERROR : READING CLIENT REQUEST
+        // CAUSES : EBADF, EINTR, ENOENT
+        // HANDLE : EBADF -> SERVER ERROR, ????
+        //          EINTR -> try again
+        //          ENOENT -> same as EBADF ???
     }
     int session_id = atoi(buffer);
 
@@ -180,6 +236,11 @@ void tfs_handle_read(int fserv) {
     ret = slait(buffer, sizeof(int), fserv);
     if (ret == -1) {
         printf("[ERROR - SERVER] %s\n", strerror(errno));
+        // ERROR : READING CLIENT REQUEST
+        // CAUSES : EBADF, EINTR, ENOENT
+        // HANDLE : EBADF -> SERVER ERROR, ????
+        //          EINTR -> try again
+        //          ENOENT -> same as EBADF ???
     }
     int fhandle = atoi(buffer);
 
@@ -187,6 +248,11 @@ void tfs_handle_read(int fserv) {
     ret = slait(buffer, sizeof(int), fserv);
     if (ret == -1) {
         printf("[ERROR - SERVER] %s\n", strerror(errno));
+        // ERROR : READING CLIENT REQUEST
+        // CAUSES : EBADF, EINTR, ENOENT
+        // HANDLE : EBADF -> SERVER ERROR, ????
+        //          EINTR -> try again
+        //          ENOENT -> same as EBADF ???
     }
     size_t len = (size_t) atoi(buffer);
 
@@ -205,7 +271,13 @@ void tfs_handle_read(int fserv) {
 
         if (write_size < 0){
             printf("[ERROR - SERVER] Error writing: %s\n", strerror(errno));
-        };
+            // ERROR : WRITE ON CLIENT PIPE
+            // CAUSES : EPIPE, EBADF, ENOENT, EINTR
+            // HANDLE : EPIPE -> erase the client, declare him as dead
+            //          EBADF -> same handle as EPIPE?
+            //          ENOENT -> CLOSE AND OPEN CLIENT (?)
+            //          EINTR -> TEMP_FAILURE_RETRY like
+        }
         return;
     }
 
@@ -222,7 +294,13 @@ void tfs_handle_read(int fserv) {
 
     if (write_size < 0) {
         printf("[ERROR - SERVER] Error writing : %s\n", strerror(errno));
-    };
+        // ERROR : WRITE ON CLIENT PIPE
+            // CAUSES : EPIPE, EBADF, ENOENT, EINTR
+            // HANDLE : EPIPE -> erase the client, declare him as dead
+            //          EBADF -> same handle as EPIPE?
+            //          ENOENT -> CLOSE AND OPEN CLIENT (?)
+            //          EINTR -> TEMP_FAILURE_RETRY like
+    }
 }
 
 void tfs_handle_write(int fserv) {
@@ -231,17 +309,37 @@ void tfs_handle_write(int fserv) {
     ssize_t ret;
 
     // SESSION_ID
-    if (read(fserv, buffer, sizeof(int)) == -1) exit(EXIT_FAILURE);
+    if (slait(buffer, sizeof(int), fserv) == -1) {
+        // ERROR : READING CLIENT REQUEST
+        // CAUSES : EBADF, EINTR, ENOENT
+        // HANDLE : EBADF -> SERVER ERROR, ????
+        //          EINTR -> try again
+        //          ENOENT -> same as EBADF ???
+        exit(EXIT_FAILURE);
+    } 
     int session_id = atoi(buffer);
 
     // FHANDLE
-    if (read(fserv, buffer, sizeof(int)) == -1) exit(EXIT_FAILURE);
+    if (slait(buffer, sizeof(int), fserv) == -1){
+        // ERROR : READING CLIENT REQUEST
+        // CAUSES : EBADF, EINTR, ENOENT
+        // HANDLE : EBADF -> SERVER ERROR, ????
+        //          EINTR -> try again
+        //          ENOENT -> same as EBADF ???
+        exit(EXIT_FAILURE);
+    }
     int fhandle = atoi(buffer);
 
     // LEN
     ret = slait(buffer, sizeof(int), fserv);
     if (ret == -1) {
         printf("[ERROR - SERVER] %s\n", strerror(errno));
+        // ERROR : READING CLIENT REQUEST
+        // CAUSES : EBADF, EINTR, ENOENT
+        // HANDLE : EBADF -> SERVER ERROR, ????
+        //          EINTR -> try again
+        //          ENOENT -> same as EBADF ???
+        exit(EXIT_FAILURE);
     }
     size_t len = (size_t) atoi(buffer);
 
@@ -250,11 +348,22 @@ void tfs_handle_write(int fserv) {
     ret = slait(buffer, len, fserv);
     if (ret == -1) {
         printf("[ERROR - SERVER] %s\n", strerror(errno));
+        // ERROR : READING CLIENT REQUEST
+        // CAUSES : EBADF, EINTR, ENOENT
+        // HANDLE : EBADF -> SERVER ERROR, ????
+        //          EINTR -> try again
+        //          ENOENT -> same as EBADF ???
+        exit(EXIT_FAILURE);
     }
 
     ssize_t written = tfs_write(fhandle, buffer, len);
 
-    if (written < 0 ) exit(EXIT_FAILURE);
+    if (written < 0 ) {
+        // ERROR : WRITING ON FILE SYSTEM
+        // CAUSES : INTERNAL ERROR
+        // HANDLE : responde to client, move on
+        exit(EXIT_FAILURE);
+    } 
 
     int fcli = sessions[session_id].fhandler;
 
@@ -262,8 +371,15 @@ void tfs_handle_write(int fserv) {
     sprintf(buffer, "%d", (int)written);
 
     ssize_t write_size = write(fcli, buffer, sizeof(int));
-
-    if (write_size < 0) exit(EXIT_FAILURE);
+    if (write_size < 0) {
+        // ERROR : WRITE ON CLIENT PIPE
+            // CAUSES : EPIPE, EBADF, ENOENT, EINTR
+            // HANDLE : EPIPE -> erase the client, declare him as dead
+            //          EBADF -> same handle as EPIPE?
+            //          ENOENT -> CLOSE AND OPEN CLIENT (?)
+            //          EINTR -> TEMP_FAILURE_RETRY like
+        exit(EXIT_FAILURE);
+    }
 }
 
 void tfs_handle_close(int fserv) {
@@ -274,6 +390,12 @@ void tfs_handle_close(int fserv) {
     ret = slait(buffer, sizeof(int), fserv);
     if (ret == -1) {
         printf("[ERROR - SERVER] %s\n", strerror(errno));
+        // ERROR : READING CLIENT REQUEST
+        // CAUSES : EBADF, EINTR, ENOENT
+        // HANDLE : EBADF -> SERVER ERROR, ????
+        //          EINTR -> try again
+        //          ENOENT -> same as EBADF ???
+        exit(EXIT_FAILURE);
     }
 
     int session_id = atoi(buffer);
@@ -281,6 +403,12 @@ void tfs_handle_close(int fserv) {
     ret = slait(buffer, sizeof(int), fserv);
     if (ret == -1) {
         printf("[ERROR - SERVER] %s\n", strerror(errno));
+        // ERROR : READING CLIENT REQUEST
+        // CAUSES : EBADF, EINTR, ENOENT
+        // HANDLE : EBADF -> SERVER ERROR, ????
+        //          EINTR -> try again
+        //          ENOENT -> same as EBADF ???
+        exit(EXIT_FAILURE);
     }
     
     int fhandle = atoi(buffer);
@@ -288,6 +416,9 @@ void tfs_handle_close(int fserv) {
     int fclose = tfs_close(fhandle);
     if (fclose < 0) {
         printf("[ERROR - SERVER] Error closing\n");
+        // ERROR : CLOSING FILE SYSTEM
+        // CAUSES : INTERNAL ERROR
+        // HANDLE : responde to client, move on
         exit(EXIT_FAILURE);
     } 
 
@@ -297,7 +428,14 @@ void tfs_handle_close(int fserv) {
     sprintf(buffer, "%d", fclose);
 
     ssize_t write_size = write(fcli, buffer, sizeof(int));  
-    if (write_size < 0) exit(EXIT_FAILURE); 
+    if (write_size < 0) {
+        // ERROR : WRITE ON CLIENT PIPE
+            // CAUSES : EPIPE, EBADF, ENOENT, EINTR
+            // HANDLE : EPIPE -> erase the client, declare him as dead
+            //          EBADF -> same handle as EPIPE?
+            //          ENOENT -> CLOSE AND OPEN CLIENT (?)
+            //          EINTR -> TEMP_FAILURE_RETRY like
+    } 
 }
 
 void tfs_handle_open(int fserv) {
@@ -316,6 +454,11 @@ void tfs_handle_open(int fserv) {
     ssize_t size_read = slait(buffer, max_size_for_open_message, fserv);
     if (size_read == -1) {
         printf("[ERROR - SERVER] Reading : %s\n", strerror(errno));
+        // ERROR : READING CLIENT REQUEST
+        // CAUSES : EBADF, EINTR, ENOENT
+        // HANDLE : EBADF -> SERVER ERROR, ????
+        //          EINTR -> try again
+        //          ENOENT -> same as EBADF ???
         exit(EXIT_FAILURE);
     } 
 
@@ -338,6 +481,9 @@ void tfs_handle_open(int fserv) {
     int tfs_fhandler = tfs_open(name, flags);
     if (tfs_fhandler == -1) {
         printf("[ERROR - SERVER] Open tfs\n");
+        // ERROR : OPEN FILE SYSTEM
+        // CAUSES : INTERNAL ERROR
+        // HANDLE : responde to client, move on
         exit(EXIT_FAILURE);
     } 
 
@@ -349,6 +495,12 @@ void tfs_handle_open(int fserv) {
     ssize_t write_size = write(fcli, aux, sizeof(int));
     if (write_size < 0) {
         printf("[ERROR - SERVER] Error writing : %s\n", strerror(errno));
+        // ERROR : WRITE ON CLIENT PIPE
+            // CAUSES : EPIPE, EBADF, ENOENT, EINTR
+            // HANDLE : EPIPE -> erase the client, declare him as dead
+            //          EBADF -> same handle as EPIPE?
+            //          ENOENT -> CLOSE AND OPEN CLIENT (?)
+            //          EINTR -> TEMP_FAILURE_RETRY like
         exit(EXIT_FAILURE);
     } 
 
@@ -362,14 +514,27 @@ void tfs_handle_shutdown_after_all_close(int fserv) {
     memset(buffer, '\0', sizeof(buffer));
     memset(aux_buffer, '\0', sizeof(aux_buffer));
 
-    ssize_t size_read = read(fserv, buffer, SIZE);
-    if (size_read == -1) exit(EXIT_FAILURE);
+    ssize_t size_read = slait(buffer, SIZE, fserv);
+    if (size_read == -1) {
+        // ERROR : READING CLIENT REQUEST
+        // CAUSES : EBADF, EINTR, ENOENT
+        // HANDLE : EBADF -> SERVER ERROR, ????
+        //          EINTR -> try again
+        //          ENOENT -> same as EBADF ???
+    }
 
     // session_id
     memcpy(aux_buffer, buffer, sizeof(int));
     int session_id = atoi(aux_buffer);  
 
     int ret = tfs_destroy_after_all_closed();
+
+    if (ret == -1) {
+        printf("[ERROR - SERVER] Destroy failed\n");
+        // ERROR : OPEN FILE SYSTEM
+        // CAUSES : INTERNAL ERROR
+        // HANDLE : responde to client, move on
+    }
 
     memset(buffer, '\0', sizeof(buffer));
     sprintf(buffer, "%d", ret);
@@ -378,7 +543,14 @@ void tfs_handle_shutdown_after_all_close(int fserv) {
 
     ssize_t write_size = write(fcli, buffer, sizeof(int));
 
-    if (write_size == -1) exit(EXIT_FAILURE);
+    if (write_size == -1) {
+        // ERROR : WRITE ON CLIENT PIPE
+            // CAUSES : EPIPE, EBADF, ENOENT, EINTR
+            // HANDLE : EPIPE -> erase the client, declare him as dead
+            //          EBADF -> same handle as EPIPE?
+            //          ENOENT -> CLOSE AND OPEN CLIENT (?)
+            //          EINTR -> TEMP_FAILURE_RETRY like
+    }
 
 }
 
