@@ -15,8 +15,6 @@ int tfs_mount(char const *client_pipe_path, char const *server_pipe_path) {
     char buffer[sizeof(char) + NAME_SIZE];
     memset(buffer, '\0', sizeof(buffer));
 
-    //size_t str_len = strlen(client_pipe_path);
-
     // WRITE MESSAGE TO SERVER 
 
     // OP_CODE
