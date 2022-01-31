@@ -14,7 +14,6 @@ int main(int argc, char **argv) {
 
     char str[SIZE];
     char *path = "/f1";
-    char buffer[40];
 
     memset(str, 'R', SIZE);
 
@@ -27,6 +26,8 @@ int main(int argc, char **argv) {
         return 1;
     }
 
+    assert(tfs_unmount() == -1);
+
     f = tfs_open(path, TFS_O_CREAT);
     assert(f == -1);
 
@@ -38,14 +39,7 @@ int main(int argc, char **argv) {
     assert(f != -1);
 
     r = tfs_write(f, str, strlen(str));
-    assert(r == strlen(str));
-
-    r = tfs_read(f, buffer, sizeof(buffer) - 1);
-    assert(r == strlen(str));
-
-    buffer[r] = '\0';
-
-    assert(strcmp(buffer, str) == 0);
+    assert(r == BLOCK_SIZE);
 
     assert(tfs_close(f) != -1);
 
