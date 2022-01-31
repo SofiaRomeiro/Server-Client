@@ -163,7 +163,7 @@ int tfs_close(int fhandle) {
     printf("[INFO - API] Calling api close...\n");
 
     size_t len = 0;
-    char buffer[sizeof(char) + sizeof(int) + sizeof(int)]; // 2 * sizeof(int)??
+    char buffer[sizeof(char) + 2 * sizeof(int)]; // 2 * sizeof(int)??
     char aux[sizeof(int)];
     memset(buffer, '\0', sizeof(buffer));
     memset(aux, '\0', sizeof(aux));
@@ -210,47 +210,44 @@ ssize_t tfs_write(int fhandle, void const *buffer, size_t len) {
     
     //size_t buffer_size = 1 + 4 + 4 + 4 + len + 1;
     size_t buffer_size = sizeof(char) + (3 * sizeof(int)) + len + sizeof(char);
+    size_t offset = 0;
     char buffer_c[buffer_size];
     memset(buffer_c, '\0', sizeof(buffer));
-    char aux[10]; //int + int + char??
+    char aux[2 * sizeof(int) + sizeof(char)]; //int + int + char??
     memset(aux, '\0', sizeof(aux));
 
     // OP_CODE
-
     char code = TFS_OP_CODE_WRITE + '0';
-    memcpy(buffer_c, &code, sizeof(char));  
+    memcpy(buffer_c, &code, sizeof(char));
+    offset += sizeof(char);
 
     // SESSION_ID
-
     sprintf(aux, "%d", session_id);
-    memcpy(buffer_c + sizeof(char), aux, sizeof(int));
+    memcpy(buffer_c + offset, aux, sizeof(int));
+    offset += sizeof(int);
 
-    // FHANDLE
-    
+    // FHANDLE    
     memset(aux, '\0', sizeof(aux));
     sprintf(aux, "%d", fhandle);
-    memcpy(buffer_c + sizeof(char) + sizeof(int), aux, sizeof(int));
+    memcpy(buffer_c + offset, aux, sizeof(int));
+    offset += sizeof(int);
 
     // LEN
-
     memset(aux, '\0', sizeof(aux));
     sprintf(aux, "%ld", len);
-    memcpy(buffer_c + sizeof(char) + (2*sizeof(int)), aux, sizeof(int));
+    memcpy(buffer_c + offset, aux, sizeof(int));
+    offset += sizeof(int);
 
     // BUFFER WITH CONTENT
-
-    memcpy(buffer_c + 13, buffer, len); // ??
+    memcpy(buffer_c + offset, buffer, len); // ??
+    offset += len;
 
     // SEND MSG TO SERVER
-    if (fserv  < 0) {
-        printf("[tfs_open] Error opening client\n");
+    ssize_t size_written = write(fserv, buffer_c, offset);
+
+    if (size_written < 0) {
+        printf("[ERROR - API] Error writing : %s\n", strerror(errno));
         return -1;
-    }
-
-    ssize_t size_written = write(fserv, buffer_c, sizeof(buffer_c));
-
-    if (size_written < sizeof(buffer_c)) {
-        printf("[ERROR - API] tfs_open error on writing\n");
     }
 
     memset(buffer_c, '\0', sizeof(buffer_c));
@@ -258,10 +255,10 @@ ssize_t tfs_write(int fhandle, void const *buffer, size_t len) {
     ssize_t ret = slait(buffer_c, len, fcli);
     if (ret == -1) {
         printf("[ERROR - API] Error reading : %s\n", strerror(errno));
+        return -1;
     }
 
     int written = atoi(buffer_c);
-
     if (written < 0) return -1;
 
     return written;
@@ -272,35 +269,39 @@ ssize_t tfs_read(int fhandle, void *buffer, size_t len) {
     printf("[INFO - API] Calling api read...\n");
 
     size_t buffer_size = (2 * sizeof(char)) + (3 * sizeof(int));
+    size_t offset = 0;
     char buffer_c[buffer_size];
     memset(buffer_c, '\0', sizeof(buffer_c));
-    char aux[10]; //int + int + char??
+    char aux[2 * sizeof(int) + sizeof(char)]; //int + int + char??
     memset(aux, '\0', sizeof(aux));
 
     // OP_CODE
     char code = TFS_OP_CODE_READ + '0';
     memcpy(buffer_c, &code, sizeof(char)); 
+    offset += sizeof(char);
 
     // SESSION_ID
     sprintf(aux, "%d", session_id);
-    memcpy(buffer_c + sizeof(char), aux, sizeof(int));
+    memcpy(buffer_c + offset, aux, sizeof(int));
+    offset += sizeof(int);
 
     // FHANDLE
     memset(aux, '\0', sizeof(aux));
     sprintf(aux, "%d", fhandle);
-    memcpy(buffer_c + sizeof(char) + sizeof(int), aux, sizeof(int));
+    memcpy(buffer_c + offset, aux, sizeof(int));
+    offset += sizeof(int);
 
     // LEN
     memset(aux, '\0', sizeof(aux));
     sprintf(aux, "%ld", len);
-    memcpy(buffer_c + sizeof(char) + (2*sizeof(int)), aux, sizeof(int));
+    memcpy(buffer_c + offset, aux, sizeof(int));
+    offset += sizeof(int);
 
     // SEND MSG TO SERVER
 
-    ssize_t size_written = write(fserv, buffer_c, sizeof(buffer_c));
-
-    if (size_written < sizeof(buffer_c)) {
-        printf("[ERROR - API] tfs_open error on writing");
+    ssize_t size_written = write(fserv, buffer_c, offset);
+    if (size_written < 0) {
+        printf("[ERROR - API] Error : %s\n", strerror(errno));
     }
 
     memset(buffer_c, '\0', sizeof(buffer_c));
