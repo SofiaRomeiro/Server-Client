@@ -14,7 +14,7 @@ INCLUDES = $(addprefix -I, $(INCLUDE_DIRS))
 SOURCES  := $(wildcard */*.c)
 HEADERS  := $(wildcard */*.h)
 OBJECTS  := $(SOURCES:.c=.o)
-TARGET_EXECS := fs/tfs_server tests/lib_destroy_after_all_closed_test tests/lib_destroy_after_all_closed_test_1 tests/lib_destroy_after_all_closed_test_2 tests/client_server_simple_test
+TARGET_EXECS := fs/tfs_server tests/lib_destroy_after_all_closed_test tests/lib_destroy_after_all_closed_test_1 tests/lib_destroy_after_all_closed_test_2 tests/client_server_simple_test tests/client_server_error_1
 
 # VPATH is a variable used by Makefile which finds *sources* and makes them available throughout the codebase
 # vpath %.h <DIR> tells make to look for header files in <DIR>
@@ -65,6 +65,16 @@ test2:
 	@printf "\n"
 	@echo ------- lib_destroy_after_all_closed_test_2 ------------
 	./tests/lib_destroy_after_all_closed_test_2
+
+test3:
+	@printf "\n"
+	@echo ------- client_server_simple_test ------------
+	./tests/client_server_simple_test
+
+test4:
+	@printf "\n"
+	@echo ------- client_server_simple_error_1 ------------
+	./tests/client_server_simple_error_1
 
 # The following target can be used to invoke clang-format on all the source and header
 # files. clang-format is a tool to format the source code based on the style specified 
