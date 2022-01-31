@@ -13,10 +13,9 @@
 // Specifies the max number of sessions existing simultaneously
 #define S 20
 
-#define SIZE 99
+#define SIZE 100
 #define PERMISSIONS 0777
 
-#define CLI_PIPE_SIZE 39
 #define SIZE_OF_CHAR sizeof(char)
 #define SIZE_OF_INT sizeof(int)
 #define NAME_SIZE 40
@@ -63,7 +62,7 @@ void tfs_handle_mount(char name[], int fserv) {
     char session_id_cli[sizeof(int)];
 
     memset(session_id_cli, '\0', sizeof(session_id_cli));
-    memset(name, '\0', CLI_PIPE_SIZE + 1);
+    memset(name, '\0', NAME_SIZE);
 
     // READ CLIENT'S PIPE NAME    
     ret = slait(name, NAME_SIZE, fserv);
@@ -163,41 +162,38 @@ void tfs_handle_unmount(int fserv) {
 }
 
 void tfs_handle_read(int fserv) {
-    char buffer[100];
-    char aux_buffer[100];
+    char buffer[SIZE];
+    char aux[SIZE];
     memset(buffer, '\0', sizeof(buffer));
-    memset(aux_buffer, '\0', sizeof(aux_buffer));
+    memset(aux, '\0', sizeof(aux));
 
-    ssize_t ret;
+    ssize_t ret = 0;
 
+    // SESSION ID
     ret = slait(buffer, sizeof(int), fserv);
     if (ret == -1) {
         printf("[ERROR - SERVER] %s\n", strerror(errno));
     }
-
     int session_id = atoi(buffer);
 
+    // F HANDLE
     ret = slait(buffer, sizeof(int), fserv);
     if (ret == -1) {
         printf("[ERROR - SERVER] %s\n", strerror(errno));
     }
-
     int fhandle = atoi(buffer);
 
+    // LEN
     ret = slait(buffer, sizeof(int), fserv);
     if (ret == -1) {
         printf("[ERROR - SERVER] %s\n", strerror(errno));
     }
-
     size_t len = (size_t) atoi(buffer);
 
-    char read_b[sizeof(char) * len + 1]; 
-    memset(read_b, '\0', sizeof(read_b));
+    char ouput_tfs[sizeof(char) * len]; 
+    memset(ouput_tfs, '\0', sizeof(ouput_tfs));
 
-    //slait(buffer, len, fserv); //nao funciona aqui
-    if (read(fserv, buffer, len) == -1) exit(EXIT_FAILURE);
-
-    ssize_t read_bytes = tfs_read(fhandle, read_b, len);
+    ssize_t read_bytes = tfs_read(fhandle, ouput_tfs, len);
 
     int fcli = sessions[session_id].fhandler;
     memset(buffer, '\0', sizeof(buffer));
@@ -205,25 +201,28 @@ void tfs_handle_read(int fserv) {
     if (read_bytes < 0)  {
         
         sprintf(buffer, "%d", (int)read_bytes);
-
         ssize_t write_size = write(fcli, buffer, sizeof(int));
 
-        if (write_size < 0) exit(EXIT_FAILURE);
-        if(close(fcli) == -1) exit(EXIT_FAILURE);
+        if (write_size < 0){
+            printf("[ERROR - SERVER] Error writing: %s\n", strerror(errno));
+        };
         return;
     }
 
-    char send[sizeof(int) + (sizeof(char) * len) + 1];
+    char send[sizeof(int) + (sizeof(char) * len)];
     memset(send, '\0', sizeof(send));
-    memset(aux_buffer, '\0', sizeof(aux_buffer));
+    memset(aux, '\0', sizeof(aux));
 
-    sprintf(aux_buffer, "%d", (int)read_bytes);
-    memcpy(send, aux_buffer, sizeof(int));
-    memcpy(send + 4, read_b, (size_t)read_bytes);
+    sprintf(aux, "%d", (int)read_bytes);
+    memcpy(send, aux, sizeof(int));
+
+    memcpy(send + sizeof(int), ouput_tfs, (size_t)read_bytes);
 
     ssize_t write_size = write(fcli, send, sizeof(int) + (size_t)read_bytes);
 
-    if (write_size < 0) exit(EXIT_FAILURE);
+    if (write_size < 0) {
+        printf("[ERROR - SERVER] Error writing : %s\n", strerror(errno));
+    };
 }
 
 void tfs_handle_write(int fserv) {
@@ -231,19 +230,22 @@ void tfs_handle_write(int fserv) {
     char buffer[SIZE];
     ssize_t ret;
 
+    // SESSION_ID
     if (read(fserv, buffer, sizeof(int)) == -1) exit(EXIT_FAILURE);
     int session_id = atoi(buffer);
 
+    // FHANDLE
     if (read(fserv, buffer, sizeof(int)) == -1) exit(EXIT_FAILURE);
     int fhandle = atoi(buffer);
 
+    // LEN
     ret = slait(buffer, sizeof(int), fserv);
     if (ret == -1) {
         printf("[ERROR - SERVER] %s\n", strerror(errno));
     }
-
     size_t len = (size_t) atoi(buffer);
 
+    // TEXT TO WRITE ON TFS
     memset(buffer, '\0', len);
     ret = slait(buffer, len, fserv);
     if (ret == -1) {
@@ -300,7 +302,7 @@ void tfs_handle_close(int fserv) {
 
 void tfs_handle_open(int fserv) {
 
-    char name[CLI_PIPE_SIZE + 1];
+    char name[NAME_SIZE];
     char buffer[SIZE];
     char aux[SIZE];
 
@@ -386,11 +388,11 @@ int main(int argc, char **argv) {
     ssize_t n;
     char *server_pipe;
     char buffer[SIZE];
-    char name[CLI_PIPE_SIZE + 1];
+    char name[NAME_SIZE];
 
     open_sessions = 0;
     memset(buffer, '\0', SIZE);
-    memset(name, '\0', CLI_PIPE_SIZE + 1); 
+    memset(name, '\0', NAME_SIZE); 
 
     for (int i = 0; i < S; i++) {
         free_sessions[i] = FREE_POS;
@@ -458,8 +460,6 @@ int main(int argc, char **argv) {
             return -1;
         }
 
-        printf("[INFO - SERVER] Open files atm = %d\n", open_sessions);
-
         command = atoi(buffer);
 
         switch(command) {
@@ -475,16 +475,12 @@ int main(int argc, char **argv) {
                 printf("[INFO - SERVER] Calling unmount...\n");
                 tfs_handle_unmount(fserv);
 
-                // ir buscar a pipe do client com o session_id e responder através dela (assim sabe-se
-                // que sessão terminar
-
             break;
 
             case (TFS_OP_CODE_OPEN):
                 printf("[INFO - SERVER] Calling open...\n");
 
                 tfs_handle_open(fserv);
-                // ...
 
             break;
 
