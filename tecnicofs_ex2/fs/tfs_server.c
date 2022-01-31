@@ -607,7 +607,7 @@ int main(int argc, char **argv) {
     if ((fserv = open(server_pipe, O_RDONLY)) < 0) {
         printf("[ERROR - SERVER] Open server : %s\n", strerror(errno));
         exit(EXIT_FAILURE);
-    }        
+    }
 
     // ----------------------------------------- START RESPONDING TO REQUESTS --------------------------------------
 

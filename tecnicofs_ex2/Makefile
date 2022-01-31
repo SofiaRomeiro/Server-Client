@@ -14,7 +14,7 @@ INCLUDES = $(addprefix -I, $(INCLUDE_DIRS))
 SOURCES  := $(wildcard */*.c)
 HEADERS  := $(wildcard */*.h)
 OBJECTS  := $(SOURCES:.c=.o)
-TARGET_EXECS := fs/tfs_server tests/lib_destroy_after_all_closed_test tests/lib_destroy_after_all_closed_test_1 tests/lib_destroy_after_all_closed_test_2 tests/client_server_simple_test tests/client_server_error_1
+TARGET_EXECS := fs/tfs_server tests/lib_destroy_after_all_closed_test tests/lib_destroy_after_all_closed_test_1 tests/lib_destroy_after_all_closed_test_2 tests/client_server_simple_test tests/client_server_error_1 tests/client_simple_test_fork
 
 # VPATH is a variable used by Makefile which finds *sources* and makes them available throughout the codebase
 # vpath %.h <DIR> tells make to look for header files in <DIR>
@@ -49,7 +49,7 @@ LDFLAGS = -pthread
 
 all: clean $(TARGET_EXECS)
 
-test: test0 test1 test2 test3 test4
+test: test0 test1 test2 test3 test4 test5
 
 test0:
 	@printf "\n"
@@ -76,6 +76,11 @@ test4:
 	@echo ------- client_server_error_1 ------------
 	./tests/client_server_error_1
 
+test5:
+	@printf "\n"
+	@echo ------- client_simple_test_fork ------------
+	./tests/client_simple_test_fork
+
 # The following target can be used to invoke clang-format on all the source and header
 # files. clang-format is a tool to format the source code based on the style specified 
 # in the file '.clang-format'.
@@ -93,6 +98,7 @@ fmt: $(SOURCES) $(HEADERS)
 # make uses a set of default rules, one of which compiles C binaries
 # the CC, LD, CFLAGS and LDFLAGS are used in this rule
 tests/client_server_simple_test: tests/client_server_simple_test.o client/tecnicofs_client_api.o common/common.o
+tests/client_simple_test_fork: tests/client_simple_test_fork.o client/tecnicofs_client_api.o common/common.o
 tests/client_server_error_1: tests/client_server_error_1.o client/tecnicofs_client_api.o common/common.o
 fs/tfs_server: fs/operations.o fs/state.o common/common.o
 tests/lib_destroy_after_all_closed_test: tests/lib_destroy_after_all_closed_test.o fs/operations.o fs/state.o common/common.o
