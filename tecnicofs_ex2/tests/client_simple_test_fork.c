@@ -21,42 +21,63 @@ int main(int argc, char **argv) {
     ssize_t r;
 
     if (argc < 3) {
-        printf("You must provide the following arguments: 'client_pipe_path "
-               "server_pipe_path'\n");
+        printf("You must provide the following arguments: 'client_pipe_path',\
+         'client_pipe_path' and 'server_pipe_path'\n");
         return 1;
     }
 
     pid1 = fork();
-    pid2 = fork();
+    printf("I'm a fork\n");    
+    printf("I'm another fork\n");
 
     if (pid1 == 0) {
-        assert(tfs_mount(argv[1], argv[2]) == 0);
+        assert(tfs_mount(argv[1], argv[3]) == 0);
+        f = tfs_open(path, TFS_O_CREAT);
+        assert(f != -1);
+        r = tfs_write(f, str, strlen(str));
+        assert(r == strlen(str));
+        assert(tfs_close(f) != -1);
+        f = tfs_open(path, 0);
+        assert(f != -1);
+        r = tfs_read(f, buffer, sizeof(buffer) - 1);
+        assert(r == strlen(str));
+        buffer[r] = '\0';
+        assert(strcmp(buffer, str) == 0);
+        assert(tfs_close(f) != -1);
+        assert(tfs_unmount() == 0);
         exit(0);
-    } else {
-        pid1 = wait(&state);
+    } 
+    else if (pid1 < 0) {
+        printf("Error forking: %s\n", strerror(errno));
+        exit(EXIT_FAILURE);
     }
 
+    pid2 = fork();
     if (pid2 == 0) {
-        assert(tfs_mount(argv[3], argv[2]) == 0);
+        assert(tfs_mount(argv[2], argv[3]) == 0);
+        f = tfs_open(path, TFS_O_CREAT);
+        assert(f != -1);
+        r = tfs_write(f, str, strlen(str));
+        assert(r == strlen(str));
+        assert(tfs_close(f) != -1);
+        f = tfs_open(path, 0);
+        assert(f != -1);
+        r = tfs_read(f, buffer, sizeof(buffer) - 1);
+        assert(r == strlen(str));
+        buffer[r] = '\0';
+        assert(strcmp(buffer, str) == 0);
+        assert(tfs_close(f) != -1);
+        assert(tfs_unmount() == 0);
         exit(0);
-    } else {
-        pid2 = wait(&state);
+    } 
+    else if (pid2 < 0) {
+        printf("Error forking: %s\n", strerror(errno));
+        exit(EXIT_FAILURE);
     }
-
-    f = tfs_open(path, TFS_O_CREAT);
-    assert(f != -1);
-    r = tfs_write(f, str, strlen(str));
-    assert(r == strlen(str));
-    assert(tfs_close(f) != -1);
-    f = tfs_open(path, 0);
-    assert(f != -1);
-    r = tfs_read(f, buffer, sizeof(buffer) - 1);
-    assert(r == strlen(str));
-    buffer[r] = '\0';
-    assert(strcmp(buffer, str) == 0);
-    assert(tfs_close(f) != -1);
-    assert(tfs_unmount() == 0);
-
+    
+    pid1 = wait(&state);
+    pid2 = wait(&state);
+    
     printf("Successful test.\n");
 
     return 0;

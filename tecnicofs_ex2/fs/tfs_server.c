@@ -9,13 +9,12 @@
 #include <errno.h>
 #include <assert.h>
 #include <signal.h>
+#include <pthread.h>
 
 // Specifies the max number of sessions existing simultaneously
-#define S 1
-
+#define S 2
 #define SIZE 100
 #define PERMISSIONS 0777
-
 #define SIZE_OF_CHAR sizeof(char)
 #define SIZE_OF_INT sizeof(int)
 #define NAME_SIZE 40
@@ -26,11 +25,28 @@ typedef struct {
     int fhandler;    
 } session_t;
 
+typedef struct {
+    int fhandler;
+    size_t len;
+    int flags;
+    char name[40];
+    // ...
+} request_t;
+
+typedef struct {
+    pthread_t tid;
+    int session_id;
+    int wake_up;
+    pthread_cond_t work;
+    request_t request;
+} slave_t;
+
 typedef enum {FREE_POS = 1, TAKEN_POS = 0} session_state_t;
 
 static int open_sessions;
 static session_t sessions[S];
 static session_state_t free_sessions[S];
+slave_t slaves[S];
 
 void handle_error() {
 
@@ -554,24 +570,33 @@ void tfs_handle_shutdown_after_all_close(int fserv) {
 
 }
 
-int main(int argc, char **argv) {
-
-    int fserv, command;
-    ssize_t n;
-    char *server_pipe;
-    char buffer[SIZE];
-    char name[NAME_SIZE];
-
+int server_init(char *buffer, char *name) {
     open_sessions = 0;
     memset(buffer, '\0', SIZE);
-    memset(name, '\0', NAME_SIZE); 
+    memset(name, '\0', NAME_SIZE);
 
     for (int i = 0; i < S; i++) {
         free_sessions[i] = FREE_POS;
         sessions[i].fhandler = -1;
         sessions[i].session_id = -1;
         memset(sessions[i].name, '\0', NAME_SIZE);
-    }   
+    }
+
+    for (int i = 0; i < S; i++) {
+        pthread_init();
+    }
+
+
+
+}
+
+int main(int argc, char **argv) {
+
+    int fserv, command;
+    ssize_t n;
+    char *server_pipe;
+    char buffer[SIZE];
+    char name[NAME_SIZE];  
 
     if (argc < 2) {
         printf("[INFO - SERVER] Please specify the pathname of the server's pipe.\n");
@@ -579,6 +604,10 @@ int main(int argc, char **argv) {
     }
 
     // CRIACAO DO SERVIDOR 
+
+    if (server_init(buffer, name) == -1) {
+        printf("[ERROR - SERVER] Error starting server\n");
+    }
 
     server_pipe = argv[1];
 
