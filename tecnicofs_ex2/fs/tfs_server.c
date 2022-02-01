@@ -901,12 +901,16 @@ void tfs_thread_shutdown_after_all_close(slave_t *slave) {
 
 void solve_request(slave_t *slave) {
 
+    printf("[INFO - SERVER] Solving request from : %d\n", slave->session_id);
+
     while(1) {
 
         // apenas é acordada a escrava que pertence ao session_id atribuido
+        pthread_mutex_lock(&slave->slave_mutex);
         while(!slave->wake_up) {
             pthread_cond_wait(&slave->work_cond, &slave->slave_mutex);
         }
+        pthread_mutex_unlock(&slave->slave_mutex);
 
         int command = slave->request.op_code;
 
@@ -914,48 +918,48 @@ void solve_request(slave_t *slave) {
             // nao esquecer de settar a wake_up var a 0 again
             case (TFS_OP_CODE_MOUNT):
 
-                printf("[INFO - SERVER] Calling mount...\n");
+                printf("[INFO - SERVER] Session %d : Calling thread mount...\n", slave->session_id);
                 tfs_thread_mount(slave);
 
             break;
 
             case (TFS_OP_CODE_UNMOUNT):
 
-                printf("[INFO - SERVER] Calling unmount...\n");
+                printf("[INFO - SERVER] Session %d : Calling thread unmount...\n", slave->session_id);
                 tfs_thread_unmount(slave);
 
             break;
 
             case (TFS_OP_CODE_OPEN):
-                printf("[INFO - SERVER] Calling open...\n");
+                printf("[INFO - SERVER] Session %d : Calling thread open...\n", slave->session_id);
 
                 tfs_thread_open(slave);
 
             break;
 
             case (TFS_OP_CODE_CLOSE):
-                printf("[INFO - SERVER] Calling close...\n");
+                printf("[INFO - SERVER] Calling thread close...\n");
                 tfs_thread_close(slave);          
 
             break;
 
             case (TFS_OP_CODE_WRITE):
 
-                printf("[INFO - SERVER] : Calling write...\n");
+                printf("[INFO - SERVER] : Calling thread write...\n");
                 tfs_thread_write(slave);
 
             break;
 
             case (TFS_OP_CODE_READ):
 
-                printf("[INFO - SERVER] : Calling read...\n");
+                printf("[INFO - SERVER] : Calling thread read...\n");
                 tfs_thread_read(slave);              
 
             break;
 
             case (TFS_OP_CODE_SHUTDOWN_AFTER_ALL_CLOSED):
 
-                printf("[INFO - SERVER] : Calling shutdown...\n");
+                printf("[INFO - SERVER] : Calling thread shutdown...\n");
                 tfs_thread_shutdown_after_all_close(slave);
 
             break;
