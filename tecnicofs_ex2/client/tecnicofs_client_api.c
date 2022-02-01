@@ -82,7 +82,10 @@ int tfs_unmount() {
     memcpy(buffer, &code, sizeof(char));  
 
     // SESSION_ID
-    sprintf(aux, "%d", session_id);
+    
+    if (sprintf(aux, "%d", session_id) < 0) {
+        printf("[ERROR - SERVER] Error writing: %s\n", strerror(errno));
+    }
     memcpy(buffer + sizeof(char), aux, sizeof(int));
 
     // SEND MSG TO SERVER
@@ -127,7 +130,9 @@ int tfs_open(char const *name, int flags) {
     len += sizeof(char);  
 
     // SESSION_ID
-    sprintf(session_id_s, "%d", session_id);
+    if (sprintf(session_id_s, "%d", session_id) < 0) {
+        printf("[ERROR - SERVER] Error writing: %s\n", strerror(errno));
+    }
     memcpy(buffer + len, session_id_s, sizeof(int));
     len += sizeof(int);
     
@@ -176,13 +181,17 @@ int tfs_close(int fhandle) {
     len += sizeof(char);
 
     // SESSION_ID
-    sprintf(aux, "%d", session_id);
+    if (sprintf(aux, "%d", session_id) < 0) {
+        printf("[ERROR - SERVER] Error writing: %s\n", strerror(errno));
+    }
     memcpy(buffer + len, aux, sizeof(int));
     len += sizeof(int);
 
     // FHANDLE
     memset(aux, '\0', sizeof(aux));
-    sprintf(aux, "%d", fhandle);
+    if (sprintf(aux, "%d", fhandle) < 0) {
+        printf("[ERROR - SERVER] Error writing: %s\n", strerror(errno));
+    }
     memcpy(buffer + len, aux, sizeof(int));  
     len += sizeof(int);
 
@@ -224,19 +233,25 @@ ssize_t tfs_write(int fhandle, void const *buffer, size_t len) {
     offset += sizeof(char);
 
     // SESSION_ID
-    sprintf(aux, "%d", session_id);
+    if (sprintf(aux, "%d", session_id) < 0) {
+        printf("[ERROR - SERVER] Error writing: %s\n", strerror(errno));
+    }
     memcpy(buffer_c + offset, aux, sizeof(int));
     offset += sizeof(int);
 
     // FHANDLE    
     memset(aux, '\0', sizeof(aux));
-    sprintf(aux, "%d", fhandle);
+    if (sprintf(aux, "%d", fhandle) < 0) {
+        printf("[ERROR - SERVER] Error writing: %s\n", strerror(errno));
+    }
     memcpy(buffer_c + offset, aux, sizeof(int));
     offset += sizeof(int);
 
     // LEN
     memset(aux, '\0', sizeof(aux));
-    sprintf(aux, "%ld", len);
+    if (sprintf(aux, "%ld", len) < 0) {
+        printf("[ERROR - SERVER] Error writing: %s\n", strerror(errno));
+    }
     memcpy(buffer_c + offset, aux, sizeof(int));
     offset += sizeof(int);
 
@@ -283,19 +298,25 @@ ssize_t tfs_read(int fhandle, void *buffer, size_t len) {
     offset += sizeof(char);
 
     // SESSION_ID
-    sprintf(aux, "%d", session_id);
+    if (sprintf(aux, "%d", session_id) < 0) {
+        printf("[ERROR - SERVER] Error writing: %s\n", strerror(errno));
+    }
     memcpy(buffer_c + offset, aux, sizeof(int));
     offset += sizeof(int);
 
     // FHANDLE
     memset(aux, '\0', sizeof(aux));
-    sprintf(aux, "%d", fhandle);
+    if (sprintf(aux, "%d", fhandle) < 0) {
+        printf("[ERROR - SERVER] Error writing: %s\n", strerror(errno));
+    }
     memcpy(buffer_c + offset, aux, sizeof(int));
     offset += sizeof(int);
 
     // LEN
     memset(aux, '\0', sizeof(aux));
-    sprintf(aux, "%ld", len);
+    if (sprintf(aux, "%ld", len) < 0) {
+        printf("[ERROR - SERVER] Error writing: %s\n", strerror(errno));
+    }
     memcpy(buffer_c + offset, aux, sizeof(int));
     offset += sizeof(int);
 
@@ -342,7 +363,9 @@ int tfs_shutdown_after_all_closed() {
     memcpy(buffer, &code, sizeof(char)); 
 
     // SESSION_ID
-    sprintf(aux, "%d", session_id);
+    if (sprintf(aux, "%d", session_id) < 0) {
+        printf("[ERROR - SERVER] Error writing: %s\n", strerror(errno));
+    }
     memcpy(buffer + sizeof(char), aux, sizeof(int));
 
     ssize_t size_written = write(fserv, buffer, sizeof(buffer));

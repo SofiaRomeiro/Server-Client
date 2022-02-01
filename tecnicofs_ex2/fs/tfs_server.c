@@ -100,7 +100,7 @@ void tfs_handle_mount(char name[], int fserv) {
         printf("[ERROR - SERVER] Reached limit number of sessions, please wait\n");
         
         // INFORM CLIENT THAT THE SESSION CAN'T BE CREATED
-        if (sprintf(session_id_cli, "%d", -1) <= 0) {
+        if (sprintf(session_id_cli, "%d", -1) < 0) {
             printf("[ERROR - SERVER] Error writing: %s\n", strerror(errno));
         }
         if (write(fcli, session_id_cli, sizeof(int)) == -1) {
@@ -133,7 +133,7 @@ void tfs_handle_mount(char name[], int fserv) {
     // ERROR ASSIGNING SESSION ID
     if (free_session_id == -1) {
         printf("[ERROR - SERVER] %s\n", strerror(errno));
-        if (sprintf(session_id_cli, "%d", free_session_id) <= 0) {
+        if (sprintf(session_id_cli, "%d", free_session_id) < 0) {
             printf("[ERROR - SERVER] Error writing: %s\n", strerror(errno));
         }
         if (write(fcli, session_id_cli, sizeof(int)) == -1) {
@@ -163,7 +163,9 @@ void tfs_handle_mount(char name[], int fserv) {
 
     // SERVER RESPONSE TO CLIENT
 
-    sprintf(session_id_cli, "%d", free_session_id);
+    if (sprintf(session_id_cli, "%d", free_session_id) < 0) {
+        printf("[ERROR - SERVER] Error writing: %s\n", strerror(errno));
+    }
     printf("k\n");
     ret = write(fcli, session_id_cli, sizeof(int));
     printf("l\n");
@@ -288,7 +290,9 @@ void tfs_handle_read(int fserv) {
 
     if (read_bytes < 0)  {
         
-        sprintf(buffer, "%d", (int)read_bytes);
+        if (sprintf(buffer, "%d", (int)read_bytes) < 0) {
+            printf("[ERROR - SERVER] Error writing: %s\n", strerror(errno));
+        }
         ssize_t write_size = write(fcli, buffer, sizeof(int));
 
         if (write_size < 0){
@@ -307,7 +311,7 @@ void tfs_handle_read(int fserv) {
     memset(send, '\0', sizeof(send));
     memset(aux, '\0', sizeof(aux));
 
-    if (sprintf(aux, "%d", (int)read_bytes) <= 0) {
+    if (sprintf(aux, "%d", (int)read_bytes) < 0) {
         printf("[ERROR - SERVER] Error writing: %s\n", strerror(errno));
     }
     memcpy(send, aux, sizeof(int));
@@ -392,7 +396,9 @@ void tfs_handle_write(int fserv) {
     int fcli = sessions[session_id].fhandler;
 
     memset(buffer, '\0', sizeof(buffer));
-    sprintf(buffer, "%d", (int)written);
+    if (sprintf(buffer, "%d", (int)written) < 0) {
+        printf("[ERROR - SERVER] Error writing: %s\n", strerror(errno));
+    }
 
     ssize_t write_size = write(fcli, buffer, sizeof(int));
     if (write_size < 0) {
@@ -449,7 +455,9 @@ void tfs_handle_close(int fserv) {
     int fcli = sessions[session_id].fhandler;
 
     memset(buffer, '\0', sizeof(buffer));
-    sprintf(buffer, "%d", fclose);
+    if (sprintf(buffer, "%d", fclose) < 0) {
+        printf("[ERROR - SERVER] Error writing: %s\n", strerror(errno));
+    }
 
     ssize_t write_size = write(fcli, buffer, sizeof(int));  
     if (write_size < 0) {
@@ -514,7 +522,9 @@ void tfs_handle_open(int fserv) {
     int fcli = sessions[session_id].fhandler; //this is client api fhandler
 
     memset(aux, '\0', SIZE);
-    sprintf(aux, "%d", tfs_fhandler);
+    if (sprintf(aux, "%d", tfs_fhandler) < 0) {
+        printf("[ERROR - SERVER] Error writing: %s\n", strerror(errno));
+    }
 
     ssize_t write_size = write(fcli, aux, sizeof(int));
     if (write_size < 0) {
@@ -561,7 +571,10 @@ void tfs_handle_shutdown_after_all_close(int fserv) {
     }
 
     memset(buffer, '\0', sizeof(buffer));
-    sprintf(buffer, "%d", ret);
+    
+    if (sprintf(buffer, "%d", ret) < 0) {
+        printf("[ERROR - SERVER] Error writing: %s\n", strerror(errno));
+    }
 
     int fcli = sessions[session_id].fhandler;
 
