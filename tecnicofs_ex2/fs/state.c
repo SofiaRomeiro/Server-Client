@@ -318,11 +318,9 @@ int add_to_open_file_table(int inumber, size_t offset) {
             open_file_table[i].of_inumber = inumber;
             open_file_table[i].of_offset = offset;
             pthread_mutex_unlock(&open_files_var_mutex);
-            printf("[ add_to_open_file_table] open files = %d\n", open_files);
             return i;
         }
     }
-    printf("[ add_to_open_file_table] open files = %d\n", open_files);
     pthread_mutex_unlock(&open_files_var_mutex);
     return -1;
 }
@@ -340,8 +338,6 @@ int remove_from_open_file_table(int fhandle) {
     pthread_mutex_lock(&open_files_var_mutex);
     open_files--;
     free_open_file_entries[fhandle] = FREE;
-
-    printf("[ remove_from_open_file_table] open files = %d\n", open_files);
 
     if (open_files == 0) pthread_cond_signal(&open_files_cond);
     pthread_mutex_unlock(&open_files_var_mutex);

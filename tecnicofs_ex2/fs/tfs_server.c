@@ -12,7 +12,7 @@
 #include <pthread.h>
 
 // Specifies the max number of sessions existing simultaneously
-#define S 2
+#define S 5
 #define SIZE 100
 #define PERMISSIONS 0777
 #define SIZE_OF_CHAR sizeof(char)
@@ -53,6 +53,8 @@ static session_t sessions[S];
 static session_state_t free_sessions[S];
 slave_t slaves[S];
 
+pthread_mutex_t global_mutex = PTHREAD_MUTEX_INITIALIZER;
+
 void handle_error() {
 
 }
@@ -61,6 +63,8 @@ int find_free_pos() {
 
     // This would be the number of the session that will be created, if possible
     int session_free = -1; 
+
+    pthread_mutex_lock(&global_mutex);
     
     for (int i = 0; i < S; i++) {
         if (free_sessions[i] == FREE_POS) {            
@@ -76,6 +80,8 @@ int find_free_pos() {
     } 
 
     free_sessions[session_free] = TAKEN_POS;
+
+    pthread_mutex_lock(&global_mutex);
     
     return session_free;
 }
@@ -99,7 +105,6 @@ void tfs_handle_mount(char name[]) {
         exit(EXIT_FAILURE);
     }   
 
-    
     // OPEN CLIENT'S PIPE
     if ((fcli = open(name, O_WRONLY)) < 0) {
         printf("[ERROR - SERVER] Failed : %s\n", strerror(errno));
@@ -161,32 +166,6 @@ void tfs_handle_mount(char name[]) {
     slaves[free_session_id].request.fcli = fcli;
     pthread_cond_signal(&slaves[free_session_id].work_cond);
 
-    /*
-    session_t *session = &(sessions[free_session_id]);
-
-    memset(session->name, '\0', sizeof(session->name));
-
-    session->session_id = free_session_id;
-    session->fhandler = fcli;    
-    memcpy(session->name, name, strlen(name));
-
-    // SERVER RESPONSE TO CLIENT
-
-    sprintf(session_id_cli, "%d", free_session_id);
-    ret = write(fcli, session_id_cli, sizeof(int));
-    if (ret == -1) {
-        printf("[ERROR - SERVER] Writing : %s\n", strerror(errno));
-        // ERROR : WRITE ON CLIENT PIPE
-            // CAUSES : EPIPE, EBADF, ENOENT, EINTR
-            // HANDLE : EPIPE -> erase the client, declare him as dead
-            //          EBADF -> same handle as EPIPE?
-            //          ENOENT -> CLOSE AND OPEN CLIENT (?)
-            //          EINTR -> TEMP_FAILURE_RETRY like
-        exit(EXIT_FAILURE);
-    }
-
-    open_sessions++;
-    */
 }
 
 void tfs_handle_unmount() {
@@ -224,30 +203,6 @@ void tfs_handle_unmount() {
     slaves[session_id].request.op_code = TFS_OP_CODE_UNMOUNT;
     slaves[session_id].wake_up = 1;
     pthread_cond_signal(&slaves[session_id].work_cond);
-
-
-    /*
-    // CLOSE & ERASE CLIENT
-    if (close(sessions[session_id].fhandler) == -1){
-        printf("[ERROR - SERVER] %s\n", strerror(errno));
-        // ERROR : CLOSE CLIENT PIPE
-            // CAUSES : EPIPE, EBADF, ENOENT, EINTR
-            // HANDLE : EPIPE -> erase the client, declare him as dead
-            //          EBADF -> CLOSE AND OPEN CLIENT (?)
-            //          ENOENT -> CLOSE AND OPEN CLIENT (?)
-            //          EINTR -> TEMP_FAILURE_RETRY like
-        exit(EXIT_FAILURE);
-    }
-
-    sessions[session_id].fhandler = -1;
-    sessions[session_id].session_id = -1;
-    memset(sessions[session_id].name, '\0', NAME_SIZE);
-
-    open_sessions--;
-    free_sessions[session_id] = FREE_POS;
-
-    printf("[INFO - SERVER] Open sessions on unmount = %d\n", open_sessions);
-    */
 }
 
 void tfs_handle_read() {
@@ -300,54 +255,6 @@ void tfs_handle_read() {
     slaves[session_id].request.fhandler = fhandle;
     slaves[session_id].request.len = len;
     pthread_cond_signal(&slaves[session_id].work_cond);
-
-    /*
-    char ouput_tfs[sizeof(char) * len]; 
-    memset(ouput_tfs, '\0', sizeof(ouput_tfs));
-
-    ssize_t read_bytes = tfs_read(fhandle, ouput_tfs, len);
-
-    int fcli = sessions[session_id].fhandler;
-    memset(buffer, '\0', sizeof(buffer));
-
-    if (read_bytes < 0)  {
-        
-        sprintf(buffer, "%d", (int)read_bytes);
-        ssize_t write_size = write(fcli, buffer, sizeof(int));
-
-        if (write_size < 0){
-            printf("[ERROR - SERVER] Error writing: %s\n", strerror(errno));
-            // ERROR : WRITE ON CLIENT PIPE
-            // CAUSES : EPIPE, EBADF, ENOENT, EINTR
-            // HANDLE : EPIPE -> erase the client, declare him as dead
-            //          EBADF -> same handle as EPIPE?
-            //          ENOENT -> CLOSE AND OPEN CLIENT (?)
-            //          EINTR -> TEMP_FAILURE_RETRY like
-        }
-        return;
-    }
-
-    char send[sizeof(int) + (sizeof(char) * len)];
-    memset(send, '\0', sizeof(send));
-    memset(aux, '\0', sizeof(aux));
-
-    sprintf(aux, "%d", (int)read_bytes);
-    memcpy(send, aux, sizeof(int));
-
-    memcpy(send + sizeof(int), ouput_tfs, (size_t)read_bytes);
-
-    ssize_t write_size = write(fcli, send, sizeof(int) + (size_t)read_bytes);
-
-    if (write_size < 0) {
-        printf("[ERROR - SERVER] Error writing : %s\n", strerror(errno));
-        // ERROR : WRITE ON CLIENT PIPE
-            // CAUSES : EPIPE, EBADF, ENOENT, EINTR
-            // HANDLE : EPIPE -> erase the client, declare him as dead
-            //          EBADF -> same handle as EPIPE?
-            //          ENOENT -> CLOSE AND OPEN CLIENT (?)
-            //          EINTR -> TEMP_FAILURE_RETRY like
-    }
-    */
 }
 
 void tfs_handle_write() {
@@ -667,7 +574,11 @@ void tfs_thread_mount(slave_t *slave) {
         exit(EXIT_FAILURE);
     }
 
+    pthread_mutex_lock(&global_mutex);
     open_sessions++;
+    pthread_mutex_unlock(&global_mutex);
+
+    slave->wake_up = 0;
 
 }
 
@@ -689,13 +600,14 @@ void tfs_thread_unmount(slave_t *slave) {
     sessions[slave->session_id].session_id = -1;
     memset(sessions[slave->session_id].name, '\0', NAME_SIZE);
 
+    pthread_mutex_lock(&global_mutex);
     open_sessions--;
     free_sessions[slave->session_id] = FREE_POS;
+    pthread_mutex_unlock(&global_mutex);
+
+    slave->wake_up = 0;
 
     printf("[INFO - SERVER] Open sessions on unmount = %d\n", open_sessions);
-
-
-
 }
 
 void tfs_thread_open(slave_t *slave) {
@@ -823,21 +735,9 @@ void tfs_thread_read(slave_t *slave) {
 void tfs_thread_write(slave_t *slave) {
 
     char buffer[SIZE];
+    memset(buffer, '\0', SIZE);    
 
-    // TEXT TO WRITE ON TFS
-    memset(buffer, '\0', SIZE);
-    ssize_t ret = slait(buffer, slave->request.len, fserv);
-    if (ret == -1) {
-        printf("[ERROR - SERVER] %s\n", strerror(errno));
-        // ERROR : READING CLIENT REQUEST
-        // CAUSES : EBADF, EINTR, ENOENT
-        // HANDLE : EBADF -> SERVER ERROR, ????
-        //          EINTR -> try again
-        //          ENOENT -> same as EBADF ???
-        exit(EXIT_FAILURE);
-    }
-
-    ssize_t written = tfs_write(slave->request.fhandler, buffer, slave->request.len);
+    ssize_t written = tfs_write(slave->request.fhandler, slave->request.to_write, slave->request.len);
 
     if (written < 0 ) {
         // ERROR : WRITING ON FILE SYSTEM
@@ -896,6 +796,7 @@ void tfs_thread_shutdown_after_all_close(slave_t *slave) {
             //          EINTR -> TEMP_FAILURE_RETRY like
     }
 
+    slave->wake_up = 0;
 
 }
 
@@ -938,14 +839,14 @@ void solve_request(slave_t *slave) {
             break;
 
             case (TFS_OP_CODE_CLOSE):
-                printf("[INFO - SERVER] Calling thread close...\n");
+                printf("[INFO - SERVER] Session %d : Calling thread close...\n", slave->session_id);
                 tfs_thread_close(slave);          
 
             break;
 
             case (TFS_OP_CODE_WRITE):
 
-                printf("[INFO - SERVER] : Calling thread write...\n");
+                printf("[INFO - SERVER] Session %d : Calling thread write...\n", slave->session_id);
                 tfs_thread_write(slave);
 
             break;
