@@ -65,34 +65,44 @@ void tfs_handle_mount(char name[], int fserv) {
     ssize_t ret = 0;
     char session_id_cli[sizeof(int)];
 
-    memset(session_id_cli, '\0', sizeof(session_id_cli));
-    memset(name, '\0', NAME_SIZE);
+    printf("in mount!\n");
 
+    memset(session_id_cli, '\0', sizeof(session_id_cli));
+    printf("a\n");
+    memset(name, '\0', NAME_SIZE);
+    printf("b\n");
     // READ CLIENT'S PIPE NAME FROM SERVER PIPE 
+    printf("FSERV: %d\n", fserv);
     ret = slait(name, NAME_SIZE, fserv);
+    printf("NAME: %s\n", name);
+    printf("c\n");
     if (ret == -1) {
         printf("[ERROR - SERVER] Reading : Failed : %s\n", strerror(errno));
         // ERROR : READING CLIENT REQUEST
         // CAUSES : EBADF, EINTR, ENOENT
         // HANDLE : 
         exit(EXIT_FAILURE);
-    }   
+    }
+    printf("d\n");
 
     // OPEN CLIENT'S PIPE
     if ((fcli = open(name, O_WRONLY)) < 0) {
-        printf("[ERROR - SERVER] Failed : %s\n", strerror(errno));
+        printf("[ERROR - SERVER] Failed opening CLIENT : %s\n", strerror(errno));
         // ERROR : OPEN CLIENT PIPE
         // CAUSES : ENOENT, EINTR
         // HANDLE : ENOENT -> keep trying until open is successfull
         //          EINTR -> retry until success (TEMP_FAILURE_RETRY like)
         exit(EXIT_FAILURE);
     }
+    printf("e\n");
 
     if (open_sessions == S) {
         printf("[ERROR - SERVER] Reached limit number of sessions, please wait\n");
         
         // INFORM CLIENT THAT THE SESSION CAN'T BE CREATED
-        sprintf(session_id_cli, "%d", -1);
+        if (sprintf(session_id_cli, "%d", -1) <= 0) {
+            printf("[ERROR - SERVER] Error writing: %s\n", strerror(errno));
+        }
         if (write(fcli, session_id_cli, sizeof(int)) == -1) {
             printf("[ERROR - SERVER] Writing to client : %s\n", strerror(errno));
             // ERROR : WRITE ON CLIENT PIPE
@@ -113,14 +123,19 @@ void tfs_handle_mount(char name[], int fserv) {
             exit(EXIT_FAILURE);
         }
         return;
-    }    
+    }
+    printf("f\n");
 
     free_session_id = find_free_pos();
+
+    printf("g\n");
 
     // ERROR ASSIGNING SESSION ID
     if (free_session_id == -1) {
         printf("[ERROR - SERVER] %s\n", strerror(errno));
-        sprintf(session_id_cli, "%d", free_session_id);
+        if (sprintf(session_id_cli, "%d", free_session_id) <= 0) {
+            printf("[ERROR - SERVER] Error writing: %s\n", strerror(errno));
+        }
         if (write(fcli, session_id_cli, sizeof(int)) == -1) {
             printf("[ERROR - SERVER] Writing to client : %s\n", strerror(errno));
             // ERROR : WRITE ON CLIENT PIPE
@@ -132,8 +147,11 @@ void tfs_handle_mount(char name[], int fserv) {
         }
         return;
     }
+    printf("h\n");
 
     session_t *session = &(sessions[free_session_id]);
+
+    printf("i\n");
 
     memset(session->name, '\0', sizeof(session->name));
 
@@ -141,10 +159,14 @@ void tfs_handle_mount(char name[], int fserv) {
     session->fhandler = fcli;    
     memcpy(session->name, name, strlen(name));
 
+    printf("j\n");
+
     // SERVER RESPONSE TO CLIENT
 
     sprintf(session_id_cli, "%d", free_session_id);
+    printf("k\n");
     ret = write(fcli, session_id_cli, sizeof(int));
+    printf("l\n");
     if (ret == -1) {
         printf("[ERROR - SERVER] Writing : %s\n", strerror(errno));
         // ERROR : WRITE ON CLIENT PIPE
@@ -285,7 +307,9 @@ void tfs_handle_read(int fserv) {
     memset(send, '\0', sizeof(send));
     memset(aux, '\0', sizeof(aux));
 
-    sprintf(aux, "%d", (int)read_bytes);
+    if (sprintf(aux, "%d", (int)read_bytes) <= 0) {
+        printf("[ERROR - SERVER] Error writing: %s\n", strerror(errno));
+    }
     memcpy(send, aux, sizeof(int));
 
     memcpy(send + sizeof(int), ouput_tfs, (size_t)read_bytes);
