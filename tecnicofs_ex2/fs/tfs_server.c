@@ -96,6 +96,8 @@ void tfs_handle_mount(char name[]) {
     memset(session_id_cli, '\0', sizeof(session_id_cli));
     memset(name, '\0', NAME_SIZE);
 
+    printf("A\n");
+
     // READ CLIENT'S PIPE NAME FROM SERVER PIPE 
     ret = slait(name, NAME_SIZE, fserv);
     if (ret == -1) {
@@ -104,7 +106,9 @@ void tfs_handle_mount(char name[]) {
         // CAUSES : EBADF, EINTR, ENOENT
         // HANDLE : 
         exit(EXIT_FAILURE);
-    }   
+    }  
+
+    printf("B\n");
 
     // OPEN CLIENT'S PIPE
     if ((fcli = open(name, O_WRONLY)) < 0) {
@@ -113,11 +117,11 @@ void tfs_handle_mount(char name[]) {
         // CAUSES : ENOENT, EINTR
         // HANDLE : ENOENT -> keep trying until open is successfull
         //          EINTR -> retry until success (TEMP_FAILURE_RETRY like)
-        while ((fcli = open(name, O_WRONLY)) < 0)
-            continue;
             
         exit(EXIT_FAILURE);
     }
+
+    printf("C\n");
 
     if (open_sessions == S) {
         printf("[ERROR - SERVER] Reached limit number of sessions, please wait\n");
@@ -146,7 +150,11 @@ void tfs_handle_mount(char name[]) {
         return;
     }    
 
+    printf("D\n");
+
     free_session_id = find_free_pos();
+
+    printf("E\n");
 
     // ERROR ASSIGNING SESSION ID
     if (free_session_id == -1) {
@@ -165,10 +173,16 @@ void tfs_handle_mount(char name[]) {
     }
 
     // LEAVE IT TO SLAVES
+
+    pthread_mutex_lock(&slaves[free_session_id].slave_mutex);
+
     slaves[free_session_id].request.op_code = TFS_OP_CODE_MOUNT;
-    slaves[free_session_id].wake_up = 1;
     slaves[free_session_id].request.fcli = fcli;
+
+    slaves[free_session_id].wake_up = 1;
     pthread_cond_signal(&slaves[free_session_id].work_cond);
+
+    pthread_mutex_unlock(&slaves[free_session_id].slave_mutex);
 
 }
 
@@ -979,14 +993,14 @@ int main(int argc, char **argv) {
 
             case (TFS_OP_CODE_WRITE):
 
-                printf("[INFO - SERVER] : Calling write...\n");
+                printf("[INFO - SERVER] Calling write...\n");
                 tfs_handle_write();
 
             break;
 
             case (TFS_OP_CODE_READ):
 
-                printf("[INFO - SERVER] : Calling read...\n");
+                printf("[INFO - SERVER] Calling read...\n");
                 tfs_handle_read();              
 
             break;
