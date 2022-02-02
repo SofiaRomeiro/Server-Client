@@ -10,7 +10,7 @@ static int session_id = -1;
 
 int tfs_mount(char const *client_pipe_path, char const *server_pipe_path) {
 
-    printf("[INFO - API] Calling api mount...\n");
+    printf("[INFO - API] (%d) Calling api mount...\n", getpid());
 
     char buffer[sizeof(char) + NAME_SIZE];
     memset(buffer, '\0', sizeof(buffer));
@@ -61,7 +61,7 @@ int tfs_mount(char const *client_pipe_path, char const *server_pipe_path) {
 
     session_id = atoi(buffer); 
     if (session_id < 0) {
-        printf("[ERROR - API] Invalid session id\n");
+        printf("[ERROR - API] Invalid session id : %d\n", session_id);
         return -1;
     }
 
@@ -70,7 +70,7 @@ int tfs_mount(char const *client_pipe_path, char const *server_pipe_path) {
 
 int tfs_unmount() {
 
-    printf("[INFO - API] Calling api unmount...\n");
+    printf("[INFO - API] (%d) Calling api unmount...\n", getpid());
     
     char buffer[sizeof(char) + sizeof(int)];
     char aux[sizeof(char) + sizeof(int)];
@@ -109,7 +109,7 @@ int tfs_unmount() {
 int tfs_open(char const *name, int flags) {
     /* TODO: Implement this */
 
-    printf("[INFO - API] Calling api open...\n");
+    printf("[INFO - API] (%d) Calling api open...\n", getpid());
     
     char buffer[sizeof(char) + sizeof(int) + NAME_SIZE + sizeof(int)];
     memset(buffer, '\0', sizeof(buffer));
@@ -162,7 +162,7 @@ int tfs_open(char const *name, int flags) {
 
 int tfs_close(int fhandle) {
 
-    printf("[INFO - API] Calling api close...\n");
+    printf("[INFO - API] (%d) Calling api close...\n", getpid());
 
     size_t len = 0;
     char buffer[sizeof(char) + 2 * sizeof(int)]; // 2 * sizeof(int)??
@@ -208,7 +208,7 @@ int tfs_close(int fhandle) {
 
 ssize_t tfs_write(int fhandle, void const *buffer, size_t len) {
 
-    printf("[INFO - API] Calling api write...\n");
+    printf("[INFO - API] (%d) Calling api write...\n", getpid());
     
     //size_t buffer_size = 1 + 4 + 4 + 4 + len + 1;
     size_t buffer_size = sizeof(char) + (3 * sizeof(int)) + len + sizeof(char);
@@ -268,7 +268,7 @@ ssize_t tfs_write(int fhandle, void const *buffer, size_t len) {
 
 ssize_t tfs_read(int fhandle, void *buffer, size_t len) {
 
-    printf("[INFO - API] Calling api read...\n");
+    printf("[INFO - API] (%d) Calling api read...\n", getpid());
 
     size_t buffer_size = (2 * sizeof(char)) + (3 * sizeof(int));
     size_t offset = 0;

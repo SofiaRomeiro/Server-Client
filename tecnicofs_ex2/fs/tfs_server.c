@@ -12,7 +12,7 @@
 #include <pthread.h>
 
 // Specifies the max number of sessions existing simultaneously
-#define S 2
+#define S 5
 #define SIZE 100
 #define PERMISSIONS 0777
 #define SIZE_OF_CHAR sizeof(char)
@@ -53,6 +53,7 @@ static session_t sessions[S];
 static session_state_t free_sessions[S];
 slave_t slaves[S];
 
+pthread_rwlock_t read_lock = PTHREAD_RWLOCK_INITIALIZER;
 pthread_mutex_t global_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 void handle_error() {
@@ -107,11 +108,14 @@ void tfs_handle_mount(char name[]) {
 
     // OPEN CLIENT'S PIPE
     if ((fcli = open(name, O_WRONLY)) < 0) {
-        printf("[ERROR - SERVER] Failed : %s\n", strerror(errno));
+        printf("[ERROR - SERVER] Failed on client %s : %s\n", name, strerror(errno));
         // ERROR : OPEN CLIENT PIPE
         // CAUSES : ENOENT, EINTR
         // HANDLE : ENOENT -> keep trying until open is successfull
         //          EINTR -> retry until success (TEMP_FAILURE_RETRY like)
+        while ((fcli = open(name, O_WRONLY)) < 0)
+            continue;
+            
         exit(EXIT_FAILURE);
     }
 
@@ -200,9 +204,14 @@ void tfs_handle_unmount() {
 
     // REQUEST PARSED, LEAVE IT TO SLAVE
 
+    pthread_mutex_lock(&slaves[session_id].slave_mutex);
+
     slaves[session_id].request.op_code = TFS_OP_CODE_UNMOUNT;
+    
     slaves[session_id].wake_up = 1;
     pthread_cond_signal(&slaves[session_id].work_cond);
+    pthread_mutex_unlock(&slaves[session_id].slave_mutex);
+
 }
 
 void tfs_handle_read() {
@@ -250,11 +259,16 @@ void tfs_handle_read() {
     size_t len = (size_t) atoi(buffer);
 
     // LEAVE IT TO THREADS
+    pthread_mutex_lock(&slaves[session_id].slave_mutex);
+
     slaves[session_id].request.op_code = TFS_OP_CODE_READ;
-    slaves[session_id].wake_up = 1;
     slaves[session_id].request.fhandler = fhandle;
     slaves[session_id].request.len = len;
+
+    slaves[session_id].wake_up = 1;
     pthread_cond_signal(&slaves[session_id].work_cond);
+
+    pthread_mutex_unlock(&slaves[session_id].slave_mutex);
 }
 
 void tfs_handle_write() {
@@ -312,13 +326,19 @@ void tfs_handle_write() {
 
     // LEAVE IT TO SLAVE
 
+    pthread_mutex_lock(&slaves[session_id].slave_mutex);
+
     slaves[session_id].request.op_code = TFS_OP_CODE_WRITE;
-    slaves[session_id].wake_up = 1;
     slaves[session_id].request.fhandler = fhandle;
     slaves[session_id].request.len = len;
     slaves[session_id].request.to_write = (char *)malloc(sizeof(char) * len);
     memcpy(slaves[session_id].request.to_write, buffer, len);
+
+    slaves[session_id].wake_up = 1;
     pthread_cond_signal(&slaves[session_id].work_cond);
+
+    pthread_mutex_unlock(&slaves[session_id].slave_mutex);
+
 }
 
 void tfs_handle_close() {
@@ -354,10 +374,15 @@ void tfs_handle_close() {
 
     // REQUEST PARSED
 
-    slaves[session_id].request.op_code = TFS_OP_CODE_CLOSE;
-    slaves[session_id].wake_up = 1;
+    pthread_mutex_lock(&slaves[session_id].slave_mutex);
+
+    slaves[session_id].request.op_code = TFS_OP_CODE_CLOSE;    
     slaves[session_id].request.fhandler = fhandle;
+
+    slaves[session_id].wake_up = 1;
     pthread_cond_signal(&slaves[session_id].work_cond);
+
+    pthread_mutex_unlock(&slaves[session_id].slave_mutex);
 
 }
 
@@ -402,11 +427,16 @@ void tfs_handle_open() {
 
     // REQUEST PARSED, LEAVE IT TO THREAD
 
+    pthread_mutex_lock(&slaves[session_id].slave_mutex);
+
     slaves[session_id].request.op_code = TFS_OP_CODE_OPEN;
-    slaves[session_id].wake_up = 1;
     memcpy(slaves[session_id].request.name, name, NAME_SIZE);
     slaves[session_id].request.flags = flags;
+
+    slaves[session_id].wake_up = 1;
     pthread_cond_signal(&slaves[session_id].work_cond);
+
+    pthread_mutex_unlock(&slaves[session_id].slave_mutex);
 
 }
 
@@ -433,9 +463,14 @@ void tfs_handle_shutdown_after_all_close() {
 
     // LET IT FOR THREADS
 
+    pthread_mutex_lock(&slaves[session_id].slave_mutex);
+
     slaves[session_id].request.op_code = TFS_OP_CODE_SHUTDOWN_AFTER_ALL_CLOSED;
+    
     slaves[session_id].wake_up = 1;
     pthread_cond_signal(&slaves[session_id].work_cond);
+
+    pthread_mutex_unlock(&slaves[session_id].slave_mutex);
 
 }
 
@@ -454,9 +489,13 @@ void tfs_thread_mount(slave_t *slave) {
 
     memset(session->name, '\0', sizeof(session->name));
 
+    pthread_mutex_lock(&slaves[slave->session_id].slave_mutex);
+
     session->session_id = slave->session_id;
     session->fhandler = slave->request.fcli;    
     memcpy(session->name, slave->request.name, strlen(slave->request.name));
+
+    pthread_mutex_unlock(&slaves[slave->session_id].slave_mutex);
 
     // SERVER RESPONSE TO CLIENT
 
@@ -477,7 +516,7 @@ void tfs_thread_mount(slave_t *slave) {
     open_sessions++;
     pthread_mutex_unlock(&global_mutex);
 
-    slave->wake_up = 0;
+    printf("[INFO - SERVER] CHECKPOINT THREAD MOUNT\n");
 
 }
 
@@ -495,18 +534,22 @@ void tfs_thread_unmount(slave_t *slave) {
         exit(EXIT_FAILURE);
     }
 
+    pthread_mutex_lock(&slave->slave_mutex);
+
     sessions[slave->session_id].fhandler = -1;
     sessions[slave->session_id].session_id = -1;
     memset(sessions[slave->session_id].name, '\0', NAME_SIZE);
+
+    pthread_mutex_unlock(&slave->slave_mutex);
 
     pthread_mutex_lock(&global_mutex);
     open_sessions--;
     free_sessions[slave->session_id] = FREE_POS;
     pthread_mutex_unlock(&global_mutex);
 
-    slave->wake_up = 0;
-
     printf("[INFO - SERVER] Open sessions on unmount = %d\n", open_sessions);
+    printf("[INFO - SERVER] CHECKPOINT THREAD UNMOUNT\n");
+
 }
 
 void tfs_thread_open(slave_t *slave) {
@@ -515,6 +558,7 @@ void tfs_thread_open(slave_t *slave) {
 
     // OPEN FILE IN TFS
     int tfs_fhandler = tfs_open(slave->request.name, slave->request.flags);
+
     if (tfs_fhandler == -1) {
         printf("[ERROR - SERVER] Open tfs\n");
         // ERROR : OPEN FILE SYSTEM
@@ -523,7 +567,11 @@ void tfs_thread_open(slave_t *slave) {
         exit(EXIT_FAILURE);
     } 
 
+    pthread_rwlock_rdlock(&read_lock);
+
     int fcli = sessions[slave->session_id].fhandler; //this is client api fhandler
+
+    pthread_rwlock_unlock(&read_lock);
 
     memset(aux, '\0', SIZE);
     sprintf(aux, "%d", tfs_fhandler);
@@ -539,8 +587,7 @@ void tfs_thread_open(slave_t *slave) {
             //          EINTR -> TEMP_FAILURE_RETRY like
         exit(EXIT_FAILURE);
     } 
-
-    slave->wake_up = 0;
+    printf("[INFO - SERVER] CHECKPOINT THREAD OPEN\n");
 
 }
 
@@ -557,7 +604,12 @@ void tfs_thread_close(slave_t *slave) {
         exit(EXIT_FAILURE);
     } 
 
+    pthread_rwlock_rdlock(&read_lock);
+
     int fcli = sessions[slave->session_id].fhandler;
+
+    pthread_rwlock_unlock(&read_lock);
+
 
     memset(buffer, '\0', sizeof(buffer));
     sprintf(buffer, "%d", fclose);
@@ -571,7 +623,7 @@ void tfs_thread_close(slave_t *slave) {
             //          ENOENT -> CLOSE AND OPEN CLIENT (?)
             //          EINTR -> TEMP_FAILURE_RETRY like
     } 
-    slave->wake_up = 0;
+    printf("[INFO - SERVER] CHECKPOINT THREAD CLOSE\n");
 
 }
 
@@ -586,7 +638,10 @@ void tfs_thread_read(slave_t *slave) {
 
     ssize_t read_bytes = tfs_read(slave->request.fhandler, ouput_tfs, len);
 
+    pthread_rwlock_rdlock(&read_lock);
     int fcli = sessions[slave->session_id].fhandler;
+    pthread_rwlock_unlock(&read_lock);
+
     memset(buffer, '\0', sizeof(buffer));
 
     if (read_bytes < 0)  {
@@ -626,9 +681,8 @@ void tfs_thread_read(slave_t *slave) {
             //          ENOENT -> CLOSE AND OPEN CLIENT (?)
             //          EINTR -> TEMP_FAILURE_RETRY like
     }
+    printf("[INFO - SERVER] CHECKPOINT THREAD READ\n");
 
-
-    slave->wake_up = 0;
 }
 
 void tfs_thread_write(slave_t *slave) {
@@ -645,7 +699,9 @@ void tfs_thread_write(slave_t *slave) {
         exit(EXIT_FAILURE);
     } 
 
+    pthread_rwlock_rdlock(&read_lock);
     int fcli = sessions[slave->session_id].fhandler;
+    pthread_rwlock_unlock(&read_lock);
 
     memset(buffer, '\0', sizeof(buffer));
     sprintf(buffer, "%d", (int)written);
@@ -662,7 +718,8 @@ void tfs_thread_write(slave_t *slave) {
     }
 
     free(slave->request.to_write);
-    slave->wake_up = 0;
+    printf("[INFO - SERVER] CHECKPOINT THREAD WRITE\n");
+
 
 }
 
@@ -682,7 +739,9 @@ void tfs_thread_shutdown_after_all_close(slave_t *slave) {
     memset(buffer, '\0', sizeof(buffer));
     sprintf(buffer, "%d", ret);
 
+    pthread_rwlock_rdlock(&read_lock);
     int fcli = sessions[slave->session_id].fhandler;
+    pthread_rwlock_unlock(&read_lock);
 
     ssize_t write_size = write(fcli, buffer, sizeof(int));
 
@@ -694,8 +753,6 @@ void tfs_thread_shutdown_after_all_close(slave_t *slave) {
             //          ENOENT -> CLOSE AND OPEN CLIENT (?)
             //          EINTR -> TEMP_FAILURE_RETRY like
     }
-
-    slave->wake_up = 0;
 
 }
 
@@ -710,6 +767,10 @@ void solve_request(slave_t *slave) {
         while(!slave->wake_up) {
             pthread_cond_wait(&slave->work_cond, &slave->slave_mutex);
         }
+
+        printf("[INFO - SERVER] Wake up thread %d\n", slave->session_id);
+
+        slave->wake_up = 0;
         pthread_mutex_unlock(&slave->slave_mutex);
 
         int command = slave->request.op_code;
@@ -769,7 +830,6 @@ void solve_request(slave_t *slave) {
             break;
             
         }
-        slave->wake_up = 0;       
     }
 }
 

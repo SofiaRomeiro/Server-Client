@@ -36,6 +36,7 @@ int main(int argc, char **argv) {
     if (pid1 == 0) {
         assert(tfs_mount(argv[1], argv[6]) == 0);
         f = tfs_open(path1, TFS_O_CREAT);
+        assert(f != -1);
         assert(tfs_close(f) != -1);
         f = tfs_open(path1, 0);
         assert(f != -1);
