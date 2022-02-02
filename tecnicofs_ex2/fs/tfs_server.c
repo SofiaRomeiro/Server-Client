@@ -205,6 +205,8 @@ void tfs_handle_unmount() {
         return;
     }
 
+    printf("[INFO - SERVER] Unmount : leave it to slaves!\n");
+
     // REQUEST PARSED, LEAVE IT TO SLAVE
 
     slaves[session_id].request.op_code = TFS_OP_CODE_UNMOUNT;
@@ -509,6 +511,8 @@ void tfs_thread_mount(slave_t *slave) {
 }
 
 void tfs_thread_unmount(slave_t *slave) {
+
+    printf("[INFO - SERVER] thread %d unmount, working...\n", slave->session_id);
 
     // CLOSE & ERASE CLIENT
     if (close(sessions[slave->session_id].fhandler) == -1){
