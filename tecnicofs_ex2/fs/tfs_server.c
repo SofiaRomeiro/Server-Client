@@ -81,7 +81,7 @@ int find_free_pos() {
 
     free_sessions[session_free] = TAKEN_POS;
 
-    pthread_mutex_lock(&global_mutex);
+    pthread_mutex_unlock(&global_mutex);
     
     return session_free;
 }
@@ -319,34 +319,6 @@ void tfs_handle_write() {
     slaves[session_id].request.to_write = (char *)malloc(sizeof(char) * len);
     memcpy(slaves[session_id].request.to_write, buffer, len);
     pthread_cond_signal(&slaves[session_id].work_cond);
-
-    /*
-
-    ssize_t written = tfs_write(fhandle, buffer, len);
-
-    if (written < 0 ) {
-        // ERROR : WRITING ON FILE SYSTEM
-        // CAUSES : INTERNAL ERROR
-        // HANDLE : responde to client, move on
-        exit(EXIT_FAILURE);
-    } 
-
-    int fcli = sessions[session_id].fhandler;
-
-    memset(buffer, '\0', sizeof(buffer));
-    sprintf(buffer, "%d", (int)written);
-
-    ssize_t write_size = write(fcli, buffer, sizeof(int));
-    if (write_size < 0) {
-        // ERROR : WRITE ON CLIENT PIPE
-            // CAUSES : EPIPE, EBADF, ENOENT, EINTR
-            // HANDLE : EPIPE -> erase the client, declare him as dead
-            //          EBADF -> same handle as EPIPE?
-            //          ENOENT -> CLOSE AND OPEN CLIENT (?)
-            //          EINTR -> TEMP_FAILURE_RETRY like
-        exit(EXIT_FAILURE);
-    }
-    */
 }
 
 void tfs_handle_close() {
@@ -386,32 +358,6 @@ void tfs_handle_close() {
     slaves[session_id].wake_up = 1;
     slaves[session_id].request.fhandler = fhandle;
     pthread_cond_signal(&slaves[session_id].work_cond);
-
-    /*
-    int fclose = tfs_close(fhandle);
-    if (fclose < 0) {
-        printf("[ERROR - SERVER] Error closing\n");
-        // ERROR : CLOSING FILE SYSTEM
-        // CAUSES : INTERNAL ERROR
-        // HANDLE : responde to client, move on
-        exit(EXIT_FAILURE);
-    } 
-
-    int fcli = sessions[session_id].fhandler;
-
-    memset(buffer, '\0', sizeof(buffer));
-    sprintf(buffer, "%d", fclose);
-
-    ssize_t write_size = write(fcli, buffer, sizeof(int));  
-    if (write_size < 0) {
-        // ERROR : WRITE ON CLIENT PIPE
-            // CAUSES : EPIPE, EBADF, ENOENT, EINTR
-            // HANDLE : EPIPE -> erase the client, declare him as dead
-            //          EBADF -> same handle as EPIPE?
-            //          ENOENT -> CLOSE AND OPEN CLIENT (?)
-            //          EINTR -> TEMP_FAILURE_RETRY like
-    } 
-    */
 
 }
 
@@ -462,26 +408,6 @@ void tfs_handle_open() {
     slaves[session_id].request.flags = flags;
     pthread_cond_signal(&slaves[session_id].work_cond);
 
-
-    /*
-    int fcli = sessions[session_id].fhandler; //this is client api fhandler
-
-    memset(aux, '\0', SIZE);
-    sprintf(aux, "%d", tfs_fhandler);
-
-    ssize_t write_size = write(fcli, aux, sizeof(int));
-    if (write_size < 0) {
-        printf("[ERROR - SERVER] Error writing : %s\n", strerror(errno));
-        // ERROR : WRITE ON CLIENT PIPE
-            // CAUSES : EPIPE, EBADF, ENOENT, EINTR
-            // HANDLE : EPIPE -> erase the client, declare him as dead
-            //          EBADF -> same handle as EPIPE?
-            //          ENOENT -> CLOSE AND OPEN CLIENT (?)
-            //          EINTR -> TEMP_FAILURE_RETRY like
-        exit(EXIT_FAILURE);
-    } 
-    */
-
 }
 
 void tfs_handle_shutdown_after_all_close() {
@@ -510,33 +436,6 @@ void tfs_handle_shutdown_after_all_close() {
     slaves[session_id].request.op_code = TFS_OP_CODE_SHUTDOWN_AFTER_ALL_CLOSED;
     slaves[session_id].wake_up = 1;
     pthread_cond_signal(&slaves[session_id].work_cond);
-
-    /*
-    int ret = tfs_destroy_after_all_closed();
-
-    if (ret == -1) {
-        printf("[ERROR - SERVER] Destroy failed\n");
-        // ERROR : OPEN FILE SYSTEM
-        // CAUSES : INTERNAL ERROR
-        // HANDLE : responde to client, move on
-    }
-
-    memset(buffer, '\0', sizeof(buffer));
-    sprintf(buffer, "%d", ret);
-
-    int fcli = sessions[session_id].fhandler;
-
-    ssize_t write_size = write(fcli, buffer, sizeof(int));
-
-    if (write_size == -1) {
-        // ERROR : WRITE ON CLIENT PIPE
-            // CAUSES : EPIPE, EBADF, ENOENT, EINTR
-            // HANDLE : EPIPE -> erase the client, declare him as dead
-            //          EBADF -> same handle as EPIPE?
-            //          ENOENT -> CLOSE AND OPEN CLIENT (?)
-            //          EINTR -> TEMP_FAILURE_RETRY like
-    }
-    */
 
 }
 
