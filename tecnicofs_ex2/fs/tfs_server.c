@@ -12,7 +12,7 @@
 #include <pthread.h>
 
 // Specifies the max number of sessions existing simultaneously
-#define S 5
+#define S 2
 #define SIZE 100
 #define PERMISSIONS 0777
 #define SIZE_OF_CHAR sizeof(char)
@@ -81,7 +81,7 @@ int find_free_pos() {
 
     free_sessions[session_free] = TAKEN_POS;
 
-    pthread_mutex_lock(&global_mutex);
+    pthread_mutex_unlock(&global_mutex);
     
     return session_free;
 }
@@ -327,12 +327,7 @@ void tfs_handle_write() {
     slaves[session_id].request.len = len;
     slaves[session_id].request.to_write = (char *)malloc(sizeof(char) * len);
     memcpy(slaves[session_id].request.to_write, buffer, len);
-
-    pthread_mutex_lock(&slaves[session_id].slave_mutex);
-    slaves[session_id].wake_up = 1;
     pthread_cond_signal(&slaves[session_id].work_cond);
-    pthread_mutex_unlock(&slaves[session_id].slave_mutex);
-
 }
 
 void tfs_handle_close() {
@@ -370,11 +365,7 @@ void tfs_handle_close() {
 
     slaves[session_id].request.op_code = TFS_OP_CODE_CLOSE;
     slaves[session_id].request.fhandler = fhandle;
-
-    pthread_mutex_lock(&slaves[session_id].slave_mutex);
-    slaves[session_id].wake_up = 1;
     pthread_cond_signal(&slaves[session_id].work_cond);
-    pthread_mutex_unlock(&slaves[session_id].slave_mutex);
 
 }
 
@@ -422,11 +413,8 @@ void tfs_handle_open() {
     slaves[session_id].request.op_code = TFS_OP_CODE_OPEN;
     memcpy(slaves[session_id].request.name, name, NAME_SIZE);
     slaves[session_id].request.flags = flags;
-
-    pthread_mutex_lock(&slaves[session_id].slave_mutex);
-    slaves[session_id].wake_up = 1;
     pthread_cond_signal(&slaves[session_id].work_cond);
-    pthread_mutex_unlock(&slaves[session_id].slave_mutex);
+
 }
 
 void tfs_handle_shutdown_after_all_close() {
@@ -457,7 +445,6 @@ void tfs_handle_shutdown_after_all_close() {
     pthread_mutex_lock(&slaves[session_id].slave_mutex);
     slaves[session_id].wake_up = 1;
     pthread_cond_signal(&slaves[session_id].work_cond);
-    pthread_mutex_unlock(&slaves[session_id].slave_mutex);
 
 }
 
