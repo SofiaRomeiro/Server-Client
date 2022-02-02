@@ -36,6 +36,7 @@ int main(int argc, char **argv) {
     if (pid1 == 0) {
         assert(tfs_mount(argv[1], argv[6]) == 0);
         f = tfs_open(path1, TFS_O_CREAT);
+        assert(f != -1);
         assert(tfs_close(f) != -1);
         f = tfs_open(path1, 0);
         assert(f != -1);
@@ -125,10 +126,15 @@ int main(int argc, char **argv) {
     }
   
     pid1 = wait(&state);
+    printf("[TEST] Wait 1\n");
     pid2 = wait(&state);
+    printf("[TEST] Wait 2\n");
     pid3 = wait(&state);
+    printf("[TEST] Wait 3\n");
     pid4 = wait(&state);
+    printf("[TEST] Wait 4\n");
     pid5 = wait(&state);
+    printf("[TEST] Wait 5\n");
 
     assert(pid1 != -1);
     assert(pid2 != -1);
