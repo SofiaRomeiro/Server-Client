@@ -88,8 +88,6 @@ int tfs_unmount() {
     // SEND MSG TO SERVER
     ssize_t size_written = write(fserv, buffer, sizeof(char) + sizeof(int));
 
-    printf("[INFO - API] Received unmount ack, shutting down...\n");
-
     if (size_written < 0) {
         printf("[ERROR - API] Error on writing : %s\n", strerror(errno));
         return -1;
@@ -111,7 +109,6 @@ int tfs_unmount() {
 }
 
 int tfs_open(char const *name, int flags) {
-    /* TODO: Implement this */
 
     printf("[INFO - API] (%d) Calling api open...\n", getpid());
     
@@ -151,12 +148,16 @@ int tfs_open(char const *name, int flags) {
         printf("[ERROR - API] Error writing : %s\n", strerror(errno));
     }
 
+    printf("[INFO API] Writting open args...\n");
+
     memset(buffer, '\0', sizeof(buffer));
 
     ssize_t ret = slait(buffer, sizeof(int), fcli);
     if (ret == -1) {
         printf("[ERROR - API] Error reading : %s\n", strerror(errno));
     }
+
+    printf("[INFO API] Readed open response...\n");
 
     int fhandler = atoi(buffer);
     if (fhandler < 0) return -1;

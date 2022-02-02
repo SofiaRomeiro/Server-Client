@@ -8,6 +8,8 @@ ssize_t slait(char *buffer_c, size_t len, int fh) {
 
     ssize_t written_count = 0, written_tfs = 0;
 
+    printf("[INFO - SLAIT] In slait...\n");
+
     while(1) {
 
         written_tfs = read(fh, buffer_c + written_count, len);  
@@ -29,5 +31,6 @@ ssize_t slait(char *buffer_c, size_t len, int fh) {
         if (written_count >= len)
             break;
     }
+    printf("[INFO - SLAIT] Leaving slait...\n");
     return written_tfs;
 }

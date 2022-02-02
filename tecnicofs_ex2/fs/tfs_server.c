@@ -444,6 +444,8 @@ void tfs_handle_open() {
 
     // REQUEST PARSED, LEAVE IT TO THREAD
 
+    printf("[INFO - SERVER] (%d) CHECKPOINT OPEN : THREAD WORK\n", session_id);
+
     pthread_mutex_lock(&slaves[session_id].slave_mutex);
 
     slaves[session_id].request.op_code = TFS_OP_CODE_OPEN;
