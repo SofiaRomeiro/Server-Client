@@ -24,7 +24,6 @@ int tfs_init() {
 }
 
 int tfs_destroy() {
-    printf("[INFO - OPERATIONS] Calling tfs_destroy...\n");
     state_destroy();
     return 0;
 }
@@ -34,8 +33,6 @@ static bool valid_pathname(char const *name) {
 }
 
 int tfs_destroy_after_all_closed() {
-
-    printf("[ tfs_destroy_after_all_closed ] Calling destroy....\n");
 
     /* TO DO: implement this */
 
@@ -83,8 +80,6 @@ int tfs_lookup(char const *name) {
 static int _tfs_open_unsynchronized(char const *name, int flags) {
     int inum;
     size_t offset;
-
-    printf("[OPS] Name : %s, flags : %d\n", name, flags);
 
     inum = _tfs_lookup_unsynchronized(name);
     if (inum >= 0) {
@@ -142,8 +137,6 @@ static int _tfs_open_unsynchronized(char const *name, int flags) {
 
 int tfs_open(char const *name, int flags) {
 
-    printf("[ tfs_open ] Flag state = %s\n", (tfs_destroy_all_closed_called == DESTROY) ? "Destroyed" : "Not destroyed");
-
     if (pthread_mutex_lock(&single_global_lock) != 0) {
         printf("[ tfs_open ] Failed locking mutex\n");
         return -1;
@@ -166,8 +159,6 @@ int tfs_open(char const *name, int flags) {
         return -1;
     }
 
-    printf("[ tfs_open ] destroy state is %d\n", tfs_destroy_all_closed_called);
-
     return ret;
 }
 
@@ -177,8 +168,6 @@ int tfs_close(int fhandle) {
     int r = remove_from_open_file_table(fhandle);
     if (pthread_mutex_unlock(&single_global_lock) != 0)
         return -1;
-
-    printf("[INFO - OPERATIONS] r = %d\n", r);
 
     return r;
 }
@@ -290,12 +279,6 @@ static ssize_t _tfs_read_unsynchronized(int fhandle, void *buffer, size_t len) {
 
 ssize_t tfs_read(int fhandle, void *buffer, size_t len) {
 
-    /*
-    if (tfs_destroy_all_closed_called == DESTROY) {
-        printf("[ tfs_read ] TFS already destroyed!\n");
-        return -1;
-    }
-    */
 
     if (pthread_mutex_lock(&single_global_lock) != 0) {
         printf("[ tfs_read ] Failed locking mutex...\n");
