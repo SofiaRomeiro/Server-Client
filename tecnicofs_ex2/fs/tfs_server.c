@@ -39,8 +39,10 @@ typedef struct {
 typedef struct {
     pthread_t tid;
     int session_id;
+    int wake_up;
     pthread_cond_t work_cond;
     request_t request;
+    pthread_mutex_t slave_mutex;
 } slave_t;
 
 typedef enum {FREE_POS = 1, TAKEN_POS = 0} session_state_t;
@@ -50,9 +52,6 @@ static int fserv;
 static session_t sessions[S];
 static session_state_t free_sessions[S];
 slave_t slaves[S];
-
-static int wake_up;
-pthread_mutex_t wake_up_cond_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 pthread_mutex_t global_mutex = PTHREAD_MUTEX_INITIALIZER;
 
@@ -82,7 +81,7 @@ int find_free_pos() {
 
     free_sessions[session_free] = TAKEN_POS;
 
-    pthread_mutex_unlock(&global_mutex);
+    pthread_mutex_lock(&global_mutex);
     
     return session_free;
 }
@@ -161,16 +160,10 @@ void tfs_handle_mount(char name[]) {
         return;
     }
 
-    printf("[INFO - SERVER] Leave it to slaves\n");
-
     // LEAVE IT TO SLAVES
     slaves[free_session_id].request.op_code = TFS_OP_CODE_MOUNT;
+    slaves[free_session_id].wake_up = 1;
     slaves[free_session_id].request.fcli = fcli;
-
-    pthread_mutex_lock(&wake_up_cond_mutex);
-    wake_up = 1;
-    pthread_mutex_unlock(&wake_up_cond_mutex);
-
     pthread_cond_signal(&slaves[free_session_id].work_cond);
 
 }
@@ -205,16 +198,10 @@ void tfs_handle_unmount() {
         return;
     }
 
-    printf("[INFO - SERVER] Unmount : leave it to slaves!\n");
-
     // REQUEST PARSED, LEAVE IT TO SLAVE
 
     slaves[session_id].request.op_code = TFS_OP_CODE_UNMOUNT;
-    
-    pthread_mutex_lock(&wake_up_cond_mutex);
-    wake_up = 1;
-    pthread_mutex_unlock(&wake_up_cond_mutex);
-
+    slaves[session_id].wake_up = 1;
     pthread_cond_signal(&slaves[session_id].work_cond);
 }
 
@@ -264,13 +251,9 @@ void tfs_handle_read() {
 
     // LEAVE IT TO THREADS
     slaves[session_id].request.op_code = TFS_OP_CODE_READ;
+    slaves[session_id].wake_up = 1;
     slaves[session_id].request.fhandler = fhandle;
     slaves[session_id].request.len = len;
-
-    pthread_mutex_lock(&wake_up_cond_mutex);
-    wake_up = 1;
-    pthread_mutex_unlock(&wake_up_cond_mutex);
-
     pthread_cond_signal(&slaves[session_id].work_cond);
 }
 
@@ -330,16 +313,40 @@ void tfs_handle_write() {
     // LEAVE IT TO SLAVE
 
     slaves[session_id].request.op_code = TFS_OP_CODE_WRITE;
+    slaves[session_id].wake_up = 1;
     slaves[session_id].request.fhandler = fhandle;
     slaves[session_id].request.len = len;
     slaves[session_id].request.to_write = (char *)malloc(sizeof(char) * len);
     memcpy(slaves[session_id].request.to_write, buffer, len);
-
-    pthread_mutex_lock(&wake_up_cond_mutex);
-    wake_up = 1;
-    pthread_mutex_unlock(&wake_up_cond_mutex);
-
     pthread_cond_signal(&slaves[session_id].work_cond);
+
+    /*
+
+    ssize_t written = tfs_write(fhandle, buffer, len);
+
+    if (written < 0 ) {
+        // ERROR : WRITING ON FILE SYSTEM
+        // CAUSES : INTERNAL ERROR
+        // HANDLE : responde to client, move on
+        exit(EXIT_FAILURE);
+    } 
+
+    int fcli = sessions[session_id].fhandler;
+
+    memset(buffer, '\0', sizeof(buffer));
+    sprintf(buffer, "%d", (int)written);
+
+    ssize_t write_size = write(fcli, buffer, sizeof(int));
+    if (write_size < 0) {
+        // ERROR : WRITE ON CLIENT PIPE
+            // CAUSES : EPIPE, EBADF, ENOENT, EINTR
+            // HANDLE : EPIPE -> erase the client, declare him as dead
+            //          EBADF -> same handle as EPIPE?
+            //          ENOENT -> CLOSE AND OPEN CLIENT (?)
+            //          EINTR -> TEMP_FAILURE_RETRY like
+        exit(EXIT_FAILURE);
+    }
+    */
 }
 
 void tfs_handle_close() {
@@ -376,13 +383,35 @@ void tfs_handle_close() {
     // REQUEST PARSED
 
     slaves[session_id].request.op_code = TFS_OP_CODE_CLOSE;
+    slaves[session_id].wake_up = 1;
     slaves[session_id].request.fhandler = fhandle;
-
-    pthread_mutex_lock(&wake_up_cond_mutex);
-    wake_up = 1;
-    pthread_mutex_unlock(&wake_up_cond_mutex);
-
     pthread_cond_signal(&slaves[session_id].work_cond);
+
+    /*
+    int fclose = tfs_close(fhandle);
+    if (fclose < 0) {
+        printf("[ERROR - SERVER] Error closing\n");
+        // ERROR : CLOSING FILE SYSTEM
+        // CAUSES : INTERNAL ERROR
+        // HANDLE : responde to client, move on
+        exit(EXIT_FAILURE);
+    } 
+
+    int fcli = sessions[session_id].fhandler;
+
+    memset(buffer, '\0', sizeof(buffer));
+    sprintf(buffer, "%d", fclose);
+
+    ssize_t write_size = write(fcli, buffer, sizeof(int));  
+    if (write_size < 0) {
+        // ERROR : WRITE ON CLIENT PIPE
+            // CAUSES : EPIPE, EBADF, ENOENT, EINTR
+            // HANDLE : EPIPE -> erase the client, declare him as dead
+            //          EBADF -> same handle as EPIPE?
+            //          ENOENT -> CLOSE AND OPEN CLIENT (?)
+            //          EINTR -> TEMP_FAILURE_RETRY like
+    } 
+    */
 
 }
 
@@ -428,14 +457,31 @@ void tfs_handle_open() {
     // REQUEST PARSED, LEAVE IT TO THREAD
 
     slaves[session_id].request.op_code = TFS_OP_CODE_OPEN;
+    slaves[session_id].wake_up = 1;
     memcpy(slaves[session_id].request.name, name, NAME_SIZE);
     slaves[session_id].request.flags = flags;
-
-    pthread_mutex_lock(&wake_up_cond_mutex);
-    wake_up = 1;
-    pthread_mutex_unlock(&wake_up_cond_mutex);
-
     pthread_cond_signal(&slaves[session_id].work_cond);
+
+
+    /*
+    int fcli = sessions[session_id].fhandler; //this is client api fhandler
+
+    memset(aux, '\0', SIZE);
+    sprintf(aux, "%d", tfs_fhandler);
+
+    ssize_t write_size = write(fcli, aux, sizeof(int));
+    if (write_size < 0) {
+        printf("[ERROR - SERVER] Error writing : %s\n", strerror(errno));
+        // ERROR : WRITE ON CLIENT PIPE
+            // CAUSES : EPIPE, EBADF, ENOENT, EINTR
+            // HANDLE : EPIPE -> erase the client, declare him as dead
+            //          EBADF -> same handle as EPIPE?
+            //          ENOENT -> CLOSE AND OPEN CLIENT (?)
+            //          EINTR -> TEMP_FAILURE_RETRY like
+        exit(EXIT_FAILURE);
+    } 
+    */
+
 }
 
 void tfs_handle_shutdown_after_all_close() {
@@ -462,12 +508,36 @@ void tfs_handle_shutdown_after_all_close() {
     // LET IT FOR THREADS
 
     slaves[session_id].request.op_code = TFS_OP_CODE_SHUTDOWN_AFTER_ALL_CLOSED;
-    
-    pthread_mutex_lock(&wake_up_cond_mutex);
-    wake_up = 1;
-    pthread_mutex_unlock(&wake_up_cond_mutex);
-
+    slaves[session_id].wake_up = 1;
     pthread_cond_signal(&slaves[session_id].work_cond);
+
+    /*
+    int ret = tfs_destroy_after_all_closed();
+
+    if (ret == -1) {
+        printf("[ERROR - SERVER] Destroy failed\n");
+        // ERROR : OPEN FILE SYSTEM
+        // CAUSES : INTERNAL ERROR
+        // HANDLE : responde to client, move on
+    }
+
+    memset(buffer, '\0', sizeof(buffer));
+    sprintf(buffer, "%d", ret);
+
+    int fcli = sessions[session_id].fhandler;
+
+    ssize_t write_size = write(fcli, buffer, sizeof(int));
+
+    if (write_size == -1) {
+        // ERROR : WRITE ON CLIENT PIPE
+            // CAUSES : EPIPE, EBADF, ENOENT, EINTR
+            // HANDLE : EPIPE -> erase the client, declare him as dead
+            //          EBADF -> same handle as EPIPE?
+            //          ENOENT -> CLOSE AND OPEN CLIENT (?)
+            //          EINTR -> TEMP_FAILURE_RETRY like
+    }
+    */
+
 }
 
 void tfs_thread_mount(slave_t *slave) {
@@ -512,8 +582,6 @@ void tfs_thread_mount(slave_t *slave) {
 
 void tfs_thread_unmount(slave_t *slave) {
 
-    printf("[INFO - SERVER] thread %d unmount, working...\n", slave->session_id);
-
     // CLOSE & ERASE CLIENT
     if (close(sessions[slave->session_id].fhandler) == -1){
         printf("[ERROR - SERVER] %s\n", strerror(errno));
@@ -533,9 +601,10 @@ void tfs_thread_unmount(slave_t *slave) {
     pthread_mutex_lock(&global_mutex);
     open_sessions--;
     free_sessions[slave->session_id] = FREE_POS;
-    pthread_mutex_unlock(&global_mutex);
+    pthread_mutex_lock(&global_mutex);
 
     printf("[INFO - SERVER] Open sessions on unmount = %d\n", open_sessions);
+
 }
 
 void tfs_thread_open(slave_t *slave) {
@@ -569,6 +638,8 @@ void tfs_thread_open(slave_t *slave) {
         exit(EXIT_FAILURE);
     } 
 
+    slave->wake_up = 0;
+
 }
 
 void tfs_thread_close(slave_t *slave) {
@@ -598,6 +669,7 @@ void tfs_thread_close(slave_t *slave) {
             //          ENOENT -> CLOSE AND OPEN CLIENT (?)
             //          EINTR -> TEMP_FAILURE_RETRY like
     } 
+    slave->wake_up = 0;
 
 }
 
@@ -653,6 +725,8 @@ void tfs_thread_read(slave_t *slave) {
             //          EINTR -> TEMP_FAILURE_RETRY like
     }
 
+
+    slave->wake_up = 0;
 }
 
 void tfs_thread_write(slave_t *slave) {
@@ -686,6 +760,7 @@ void tfs_thread_write(slave_t *slave) {
     }
 
     free(slave->request.to_write);
+    slave->wake_up = 0;
 
 }
 
@@ -718,6 +793,7 @@ void tfs_thread_shutdown_after_all_close(slave_t *slave) {
             //          EINTR -> TEMP_FAILURE_RETRY like
     }
 
+
 }
 
 void solve_request(slave_t *slave) {
@@ -727,21 +803,16 @@ void solve_request(slave_t *slave) {
     while(1) {
 
         // apenas é acordada a escrava que pertence ao session_id atribuido
-        pthread_mutex_lock(&wake_up_cond_mutex);
-        while(!wake_up) {
-            pthread_cond_wait(&slave->work_cond, &wake_up_cond_mutex);
+        pthread_mutex_lock(&slave->slave_mutex);
+        while(!slave->wake_up) {
+            pthread_cond_wait(&slave->work_cond, &slave->slave_mutex);
         }
-        
-        wake_up = 0;
-        pthread_mutex_unlock(&wake_up_cond_mutex);
-
-            printf("[INFO - SERVER] Start working as %d\n", slave->session_id);
-
+        pthread_mutex_unlock(&slave->slave_mutex);
 
         int command = slave->request.op_code;
 
         switch(command) {
-
+            // nao esquecer de settar a wake_up var a 0 again
             case (TFS_OP_CODE_MOUNT):
 
                 printf("[INFO - SERVER] Session %d : Calling thread mount...\n", slave->session_id);
@@ -794,13 +865,13 @@ void solve_request(slave_t *slave) {
                 printf("[tfs_server] Switch case : Command %c: No correspondance\n", command);
             break;
             
-        }   
+        }
+        slave->wake_up = 0;       
     }
 }
 
 int server_init(char *buffer, char *name) {
     open_sessions = 0;
-    wake_up = 0;
     memset(buffer, '\0', SIZE);
     memset(name, '\0', NAME_SIZE);
 
@@ -820,7 +891,12 @@ int server_init(char *buffer, char *name) {
         slaves[i].request.len = 0;
         memset(slaves[i].request.name, '\0', NAME_SIZE);
         
+        if (pthread_mutex_init(&slaves[i].slave_mutex, NULL) != 0) {
+            printf("[ERROR - SERVER] Error creating mutex : %s\n", strerror(errno));
+            return -1;
+        }
         slaves[i].session_id = i;
+        slaves[i].wake_up = 0;
         if (pthread_cond_init(&slaves[i].work_cond, NULL) != 0) {
             printf("[ERROR - SERVER] Error creating cond var : %s\n", strerror(errno));
             return -1;
