@@ -175,6 +175,8 @@ void tfs_handle_mount(char name[]) {
 
     pthread_mutex_unlock(&slaves[free_session_id].slave_mutex);
 
+    printf("[INFO - SERVER] (%d) CHECKPOINT EXITING MOUNT\n", free_session_id);
+
 }
 
 void tfs_handle_unmount() {
@@ -216,6 +218,8 @@ void tfs_handle_unmount() {
     slaves[session_id].wake_up = 1;
     pthread_cond_signal(&slaves[session_id].work_cond);
     pthread_mutex_unlock(&slaves[session_id].slave_mutex);
+
+    printf("[INFO - SERVER] (%d) CHECKPOINT EXITING UNMOUNT\n", session_id);
 
 }
 
@@ -274,6 +278,9 @@ void tfs_handle_read() {
     pthread_cond_signal(&slaves[session_id].work_cond);
 
     pthread_mutex_unlock(&slaves[session_id].slave_mutex);
+
+    printf("[INFO - SERVER] (%d) CHECKPOINT EXITING REASD\n", session_id);
+
 }
 
 void tfs_handle_write() {
@@ -344,6 +351,8 @@ void tfs_handle_write() {
 
     pthread_mutex_unlock(&slaves[session_id].slave_mutex);
 
+    printf("[INFO - SERVER] (%d) CHECKPOINT EXITING WRITE\n", session_id);
+
 }
 
 void tfs_handle_close() {
@@ -388,6 +397,9 @@ void tfs_handle_close() {
     pthread_cond_signal(&slaves[session_id].work_cond);
 
     pthread_mutex_unlock(&slaves[session_id].slave_mutex);
+
+    printf("[INFO - SERVER] (%d) CHECKPOINT EXITING CLOSE\n", session_id);
+
 
 }
 
@@ -443,6 +455,9 @@ void tfs_handle_open() {
 
     pthread_mutex_unlock(&slaves[session_id].slave_mutex);
 
+    printf("[INFO - SERVER] (%d) CHECKPOINT EXITING OPEN\n", session_id);
+
+
 }
 
 void tfs_handle_shutdown_after_all_close() {
@@ -481,20 +496,23 @@ void tfs_handle_shutdown_after_all_close() {
 
 void tfs_thread_mount(slave_t *slave) {
 
-    // is it a broadcast ??
 
     // POSSIVEL SOLUCAO
+    printf("[INFO - SERVER] CHECKPOINT ARRIVING TO THREAD MOUNT\n");
+
 
     // O session id deve sempre ser positivo para a thread poder ser chamada,
     // logo apenas depois dessa verificação faz sentido pensar em chamar a slave
     char session_id_cli[SIZE];
     memset(session_id_cli, '\0', SIZE);
 
+    pthread_mutex_lock(&global_mutex);
     session_t *session = &(sessions[slave->session_id]);
+    pthread_mutex_unlock(&global_mutex);
 
     memset(session->name, '\0', sizeof(session->name));
 
-    pthread_rwlock_rdlock(&slaves[slave->session_id].slave_rdlock);
+    //pthread_rwlock_rdlock(&slaves[slave->session_id].slave_rdlock);
 
     session->session_id = slave->session_id;
     session->fhandler = slave->request.fcli;    
@@ -503,7 +521,9 @@ void tfs_thread_mount(slave_t *slave) {
 
     sprintf(session_id_cli, "%d", slave->session_id);
     int fcli = slave->request.fcli;
-    pthread_rwlock_unlock(&slaves[slave->session_id].slave_rdlock);
+    //pthread_rwlock_unlock(&slaves[slave->session_id].slave_rdlock);
+
+    printf("[INFO - SERVER] Attributed session id on mount : %d\n", slave->session_id);
 
     ssize_t ret = write(fcli, session_id_cli, sizeof(int));
     if (ret == -1) {
@@ -521,7 +541,7 @@ void tfs_thread_mount(slave_t *slave) {
     open_sessions++;
     pthread_mutex_unlock(&global_mutex);
 
-    printf("[INFO - SERVER] CHECKPOINT THREAD MOUNT\n");
+    printf("[INFO - SERVER] (%d) CHECKPOINT EXITING THREAD MOUNT\n", slave->session_id);
 
 }
 

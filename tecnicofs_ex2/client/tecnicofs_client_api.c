@@ -88,6 +88,8 @@ int tfs_unmount() {
     // SEND MSG TO SERVER
     ssize_t size_written = write(fserv, buffer, sizeof(char) + sizeof(int));
 
+    printf("[INFO - API] Received unmount ack, shutting down...\n");
+
     if (size_written < 0) {
         printf("[ERROR - API] Error on writing : %s\n", strerror(errno));
         return -1;
@@ -102,6 +104,8 @@ int tfs_unmount() {
         printf("[ERROR - API] Error on writing : %s\n", strerror(errno));
         return -1;
     }
+
+    printf("[INFO - API] Client %d is dead\n", getpid());
 
     return 0;  
 }

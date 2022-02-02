@@ -126,10 +126,15 @@ int main(int argc, char **argv) {
     }
   
     pid1 = wait(&state);
+    printf("[TEST] Wait 1\n");
     pid2 = wait(&state);
+    printf("[TEST] Wait 2\n");
     pid3 = wait(&state);
+    printf("[TEST] Wait 3\n");
     pid4 = wait(&state);
+    printf("[TEST] Wait 4\n");
     pid5 = wait(&state);
+    printf("[TEST] Wait 5\n");
 
     assert(pid1 != -1);
     assert(pid2 != -1);
