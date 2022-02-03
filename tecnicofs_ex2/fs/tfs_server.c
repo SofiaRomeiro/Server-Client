@@ -12,7 +12,7 @@
 #include <pthread.h>
 
 // Specifies the max number of sessions existing simultaneously
-#define S 5
+#define S 4
 #define SIZE 100
 #define PERMISSIONS 0777
 #define SIZE_OF_CHAR sizeof(char)
@@ -33,7 +33,6 @@ typedef struct {
     int flags;
     char name[NAME_SIZE];
     char *to_write;
-    // ...
 } request_t;
 
 typedef struct {
@@ -57,17 +56,6 @@ slave_t slaves[S];
 pthread_rwlock_t read_lock = PTHREAD_RWLOCK_INITIALIZER;
 pthread_mutex_t global_mutex = PTHREAD_MUTEX_INITIALIZER;
 
-void increment_sessions() {
-    if (pthread_mutex_lock(&global_mutex) != 0) exit(EXIT_FAILURE);
-    open_sessions++;
-    if (pthread_mutex_unlock(&global_mutex) != 0) exit(EXIT_FAILURE);
-}
-
-void decrement_sessions() {
-    pthread_mutex_lock(&global_mutex);
-    open_sessions--;
-    pthread_mutex_unlock(&global_mutex);
-}
 
 void handle_error() {}
 
@@ -77,7 +65,9 @@ int slait_open(char *name) {
         fcli = open(name, O_WRONLY | O_NONBLOCK);
         if (fcli != -1 ) break;
         printf("[ERROR - SERVER] Failed on client %s : %s\n", name, strerror(errno));
+        printf("[ERROR - SERVER] Trying to open client %s again\n", name);
     }
+    printf("[INFO - SERVER] Sucess opening client %s with fcli %d\n", name, fcli);
     return fcli;
 }
 
@@ -227,6 +217,12 @@ void tfs_handle_mount(char name[]) {
 
     pthread_mutex_unlock(&slaves[free_session_id].slave_mutex);
 
+    pthread_mutex_lock(&global_mutex);
+    open_sessions++;
+    pthread_mutex_unlock(&global_mutex);
+
+
+    printf("[INFO - SERVER] EXITING... Number of sessions : %d\n", open_sessions);
     printf("[INFO - SERVER] (%d) CHECKPOINT EXITING MOUNT\n", free_session_id);
 
 }
@@ -271,6 +267,10 @@ void tfs_handle_unmount() {
     pthread_cond_signal(&slaves[session_id].work_cond);
     pthread_mutex_unlock(&slaves[session_id].slave_mutex);
 
+    pthread_mutex_lock(&global_mutex);
+    open_sessions--;
+    pthread_mutex_unlock(&global_mutex);
+
     printf("[INFO - SERVER] (%d) CHECKPOINT EXITING UNMOUNT\n", session_id);
 
 }
@@ -294,6 +294,7 @@ void tfs_handle_read() {
         //          ENOENT -> same as EBADF ???
     }
     int session_id = atoi(buffer);
+
 
     // F HANDLE
     ret = slait(buffer, sizeof(int), fserv);
@@ -597,8 +598,6 @@ void tfs_thread_mount(slave_t *slave) {
         exit(EXIT_FAILURE);
     }
 
-    increment_sessions();
-
     printf("[INFO - SERVER] (%d) CHECKPOINT EXITING THREAD MOUNT\n", slave->session_id);
 
 }
@@ -628,7 +627,6 @@ void tfs_thread_unmount(slave_t *slave) {
     //pthread_mutex_unlock(&slave->slave_mutex);
 
     pthread_mutex_lock(&global_mutex);
-    open_sessions--;
     free_sessions[session_id] = FREE_POS;
     pthread_mutex_unlock(&global_mutex);
 
