@@ -4,9 +4,12 @@
 /*
 Sleep + Wait
 */
+/*
 ssize_t slait(char *buffer_c, size_t len, int fh) {
 
     ssize_t written_count = 0, written_tfs = 0;
+
+    printf("[INFO - SLAIT] (len = %ld) In slait...\n", len);
 
     while(1) {
 
@@ -24,10 +27,12 @@ ssize_t slait(char *buffer_c, size_t len, int fh) {
 
         written_count += written_tfs;
 
-        // printf("[INFO - SLAIT] Written count = %ld || len = %ld\n", written_tfs, len);
+        printf("[INFO - SLAIT] Written count = %ld || len = %ld\n", written_tfs, len);
 
         if (written_count >= len)
             break;
     }
+    printf("[INFO - SLAIT] Leaving slait...\n");
     return written_tfs;
 }
+*/
