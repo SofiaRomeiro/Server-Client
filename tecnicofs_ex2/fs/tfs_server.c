@@ -32,6 +32,8 @@ static int open_sessions;
 static session_t sessions[S];
 static session_state_t free_sessions[S];
 
+char buffer[SIZE];
+
 void handle_error() {
 
 }
@@ -185,7 +187,7 @@ void tfs_handle_mount(char name[], int fserv) {
 
 void tfs_handle_unmount(int fserv) {
 
-    char buffer[SIZE];
+    //char buffer[SIZE];
     char aux[SIZE];
     memset(buffer, '\0', SIZE);
     memset(aux, '\0', SIZE);
@@ -237,7 +239,7 @@ void tfs_handle_unmount(int fserv) {
 }
 
 void tfs_handle_read(int fserv) {
-    char buffer[SIZE];
+    //char buffer[SIZE];
     char aux[SIZE];
     memset(buffer, '\0', sizeof(buffer));
     memset(aux, '\0', sizeof(aux));
@@ -333,7 +335,7 @@ void tfs_handle_read(int fserv) {
 
 void tfs_handle_write(int fserv) {
 
-    char buffer[SIZE];
+    //char buffer[SIZE];
     ssize_t ret;
 
     // SESSION_ID
@@ -414,7 +416,7 @@ void tfs_handle_write(int fserv) {
 
 void tfs_handle_close(int fserv) {
 
-    char buffer[SIZE];
+    //char buffer[SIZE];
     ssize_t ret;
 
     ret = slait(buffer, sizeof(int), fserv);
@@ -473,7 +475,7 @@ void tfs_handle_close(int fserv) {
 void tfs_handle_open(int fserv) {
 
     char name[NAME_SIZE];
-    char buffer[SIZE];
+    //char buffer[SIZE];
     char aux[SIZE];
 
     size_t max_size_for_open_message = 45; // int ssid, char[40] name, char flags
@@ -542,7 +544,7 @@ void tfs_handle_open(int fserv) {
 
 void tfs_handle_shutdown_after_all_close(int fserv) {
 
-    char buffer[SIZE];
+    //char buffer[SIZE];
     char aux_buffer[SIZE];
 
     memset(buffer, '\0', sizeof(buffer));
@@ -596,7 +598,7 @@ int main(int argc, char **argv) {
     int fserv, command;
     ssize_t n;
     char *server_pipe;
-    char buffer[SIZE];
+    //char buffer[SIZE];
     char name[NAME_SIZE];
 
     open_sessions = 0;

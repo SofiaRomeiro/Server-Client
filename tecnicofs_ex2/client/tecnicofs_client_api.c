@@ -8,11 +8,13 @@ static int fcli;
 static int fserv;
 static int session_id = -1;
 
+char buffer[100];
+
 int tfs_mount(char const *client_pipe_path, char const *server_pipe_path) {
 
-    printf("[INFO - API] Calling api mount...\n");
+    printf("[INFO - API] Calling API mount...\n");
 
-    char buffer[sizeof(char) + NAME_SIZE];
+    //char buffer[sizeof(char) + NAME_SIZE];
     memset(buffer, '\0', sizeof(buffer));
 
     // WRITE MESSAGE TO SERVER 
@@ -38,17 +40,17 @@ int tfs_mount(char const *client_pipe_path, char const *server_pipe_path) {
 
     // CREATE AND OPEN CLIENT'S PIPE
     if (unlink(client_pipe_path) != 0 && errno != ENOENT) {
-        printf("[ERROR - SERVER]: unlink(%s) failed: %s\n", client_pipe_path, strerror(errno));
+        printf("[ERROR - API]: unlink(%s) failed: %s\n", client_pipe_path, strerror(errno));
         return -1;
     }
 
     if (mkfifo(client_pipe_path, PERMISSIONS) != 0) { // criar named pipe - client
-        printf("[ERROR - SERVER] Mkfifo failed : %s\n", strerror(errno));
+        printf("[ERROR - API] Mkfifo failed : %s\n", strerror(errno));
         return -1;
     }
 
     if ((fcli = open(client_pipe_path, O_RDONLY)) < 0) {
-        printf("[ERROR - SERVER] Error opening client : %s\n", strerror(errno));
+        printf("[ERROR - API] Error opening client : %s\n", strerror(errno));
         return -1;
     } 
 
@@ -70,9 +72,9 @@ int tfs_mount(char const *client_pipe_path, char const *server_pipe_path) {
 
 int tfs_unmount() {
 
-    printf("[INFO - API] Calling api unmount...\n");
+    printf("[INFO - API] Calling API unmount...\n");
     
-    char buffer[sizeof(char) + sizeof(int)];
+    //char buffer[sizeof(char) + sizeof(int)];
     char aux[sizeof(char) + sizeof(int)];
     memset(buffer, '\0', sizeof(buffer));
     memset(aux, '\0', sizeof(aux));
@@ -84,7 +86,7 @@ int tfs_unmount() {
     // SESSION_ID
     
     if (sprintf(aux, "%d", session_id) < 0) {
-        printf("[ERROR - SERVER] Error writing: %s\n", strerror(errno));
+        printf("[ERROR - API] Error writing: %s\n", strerror(errno));
     }
     memcpy(buffer + sizeof(char), aux, sizeof(int));
 
@@ -112,9 +114,9 @@ int tfs_unmount() {
 int tfs_open(char const *name, int flags) {
     /* TODO: Implement this */
 
-    printf("[INFO - API] Calling api open...\n");
+    printf("[INFO - API] Calling API open...\n");
     
-    char buffer[sizeof(char) + sizeof(int) + NAME_SIZE + sizeof(int)];
+    //char buffer[sizeof(char) + sizeof(int) + NAME_SIZE + sizeof(int)];
     memset(buffer, '\0', sizeof(buffer));
     char session_id_s[sizeof(int)];
     memset(session_id_s, '\0', sizeof(session_id_s));
@@ -131,7 +133,7 @@ int tfs_open(char const *name, int flags) {
 
     // SESSION_ID
     if (sprintf(session_id_s, "%d", session_id) < 0) {
-        printf("[ERROR - SERVER] Error writing: %s\n", strerror(errno));
+        printf("[ERROR - API] Error writing: %s\n", strerror(errno));
     }
     memcpy(buffer + len, session_id_s, sizeof(int));
     len += sizeof(int);
@@ -170,7 +172,7 @@ int tfs_close(int fhandle) {
     printf("[INFO - API] Calling api close...\n");
 
     size_t len = 0;
-    char buffer[sizeof(char) + 2 * sizeof(int)]; // 2 * sizeof(int)??
+    //char buffer[sizeof(char) + 2 * sizeof(int)]; // 2 * sizeof(int)??
     char aux[sizeof(int)];
     memset(buffer, '\0', sizeof(buffer));
     memset(aux, '\0', sizeof(aux));
@@ -182,7 +184,7 @@ int tfs_close(int fhandle) {
 
     // SESSION_ID
     if (sprintf(aux, "%d", session_id) < 0) {
-        printf("[ERROR - SERVER] Error writing: %s\n", strerror(errno));
+        printf("[ERROR - API] Error writing: %s\n", strerror(errno));
     }
     memcpy(buffer + len, aux, sizeof(int));
     len += sizeof(int);
@@ -190,7 +192,7 @@ int tfs_close(int fhandle) {
     // FHANDLE
     memset(aux, '\0', sizeof(aux));
     if (sprintf(aux, "%d", fhandle) < 0) {
-        printf("[ERROR - SERVER] Error writing: %s\n", strerror(errno));
+        printf("[ERROR - API] Error writing: %s\n", strerror(errno));
     }
     memcpy(buffer + len, aux, sizeof(int));  
     len += sizeof(int);
@@ -215,7 +217,7 @@ int tfs_close(int fhandle) {
     return 0;
 }
 
-ssize_t tfs_write(int fhandle, void const *buffer, size_t len) {
+ssize_t tfs_write(int fhandle, void const *buffer_i, size_t len) {
 
     printf("[INFO - API] Calling api write...\n");
     
@@ -223,7 +225,7 @@ ssize_t tfs_write(int fhandle, void const *buffer, size_t len) {
     size_t buffer_size = sizeof(char) + (3 * sizeof(int)) + len + sizeof(char);
     size_t offset = 0;
     char buffer_c[buffer_size];
-    memset(buffer_c, '\0', sizeof(buffer));
+    memset(buffer_c, '\0', sizeof(buffer_i));
     char aux[2 * sizeof(int) + sizeof(char)]; //int + int + char??
     memset(aux, '\0', sizeof(aux));
 
@@ -234,7 +236,7 @@ ssize_t tfs_write(int fhandle, void const *buffer, size_t len) {
 
     // SESSION_ID
     if (sprintf(aux, "%d", session_id) < 0) {
-        printf("[ERROR - SERVER] Error writing: %s\n", strerror(errno));
+        printf("[ERROR - API] Error writing: %s\n", strerror(errno));
     }
     memcpy(buffer_c + offset, aux, sizeof(int));
     offset += sizeof(int);
@@ -242,7 +244,7 @@ ssize_t tfs_write(int fhandle, void const *buffer, size_t len) {
     // FHANDLE    
     memset(aux, '\0', sizeof(aux));
     if (sprintf(aux, "%d", fhandle) < 0) {
-        printf("[ERROR - SERVER] Error writing: %s\n", strerror(errno));
+        printf("[ERROR - API] Error writing: %s\n", strerror(errno));
     }
     memcpy(buffer_c + offset, aux, sizeof(int));
     offset += sizeof(int);
@@ -256,7 +258,7 @@ ssize_t tfs_write(int fhandle, void const *buffer, size_t len) {
     offset += sizeof(int);
 
     // BUFFER WITH CONTENT
-    memcpy(buffer_c + offset, buffer, len); // ??
+    memcpy(buffer_c + offset, buffer_i, len); // ??
     offset += len;
 
     // SEND MSG TO SERVER
@@ -281,7 +283,7 @@ ssize_t tfs_write(int fhandle, void const *buffer, size_t len) {
     return written;
 }
 
-ssize_t tfs_read(int fhandle, void *buffer, size_t len) {
+ssize_t tfs_read(int fhandle, void *buffer_i, size_t len) {
 
     printf("[INFO - API] Calling api read...\n");
 
@@ -299,7 +301,7 @@ ssize_t tfs_read(int fhandle, void *buffer, size_t len) {
 
     // SESSION_ID
     if (sprintf(aux, "%d", session_id) < 0) {
-        printf("[ERROR - SERVER] Error writing: %s\n", strerror(errno));
+        printf("[ERROR - API] Error writing: %s\n", strerror(errno));
     }
     memcpy(buffer_c + offset, aux, sizeof(int));
     offset += sizeof(int);
@@ -307,7 +309,7 @@ ssize_t tfs_read(int fhandle, void *buffer, size_t len) {
     // FHANDLE
     memset(aux, '\0', sizeof(aux));
     if (sprintf(aux, "%d", fhandle) < 0) {
-        printf("[ERROR - SERVER] Error writing: %s\n", strerror(errno));
+        printf("[ERROR - API] Error writing: %s\n", strerror(errno));
     }
     memcpy(buffer_c + offset, aux, sizeof(int));
     offset += sizeof(int);
@@ -315,7 +317,7 @@ ssize_t tfs_read(int fhandle, void *buffer, size_t len) {
     // LEN
     memset(aux, '\0', sizeof(aux));
     if (sprintf(aux, "%ld", len) < 0) {
-        printf("[ERROR - SERVER] Error writing: %s\n", strerror(errno));
+        printf("[ERROR - API] Error writing: %s\n", strerror(errno));
     }
     memcpy(buffer_c + offset, aux, sizeof(int));
     offset += sizeof(int);
@@ -345,7 +347,7 @@ ssize_t tfs_read(int fhandle, void *buffer, size_t len) {
         printf("[ERROR - API] Error reading : %s\n", strerror(errno));
     }  
 
-    memcpy(buffer, buffer_c, read_code);
+    memcpy(buffer_i, buffer_c, read_code);
 
     // READ ANSWER
     return (ssize_t)read_code;
@@ -353,7 +355,7 @@ ssize_t tfs_read(int fhandle, void *buffer, size_t len) {
 
 int tfs_shutdown_after_all_closed() {
 
-    char buffer[sizeof(char) + sizeof(int)];
+    //char buffer[sizeof(char) + sizeof(int)];
     memset(buffer, '\0', sizeof(buffer));
     char aux[sizeof(int)];
     memset(aux, '\0', sizeof(aux));
@@ -364,7 +366,7 @@ int tfs_shutdown_after_all_closed() {
 
     // SESSION_ID
     if (sprintf(aux, "%d", session_id) < 0) {
-        printf("[ERROR - SERVER] Error writing: %s\n", strerror(errno));
+        printf("[ERROR - API] Error writing: %s\n", strerror(errno));
     }
     memcpy(buffer + sizeof(char), aux, sizeof(int));
 
