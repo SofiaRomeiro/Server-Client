@@ -57,8 +57,54 @@ slave_t slaves[S];
 pthread_rwlock_t read_lock = PTHREAD_RWLOCK_INITIALIZER;
 pthread_mutex_t global_mutex = PTHREAD_MUTEX_INITIALIZER;
 
-void handle_error() {
+void increment_sessions() {
+    if (pthread_mutex_lock(&global_mutex) != 0) exit(EXIT_FAILURE);
+    open_sessions++;
+    if (pthread_mutex_unlock(&global_mutex) != 0) exit(EXIT_FAILURE);
+}
 
+void decrement_sessions() {
+    pthread_mutex_lock(&global_mutex);
+    open_sessions--;
+    pthread_mutex_unlock(&global_mutex);
+}
+
+void handle_error() {}
+
+int slait_open(char *name) {
+    int fcli;
+    while(1) {
+        fcli = open(name, O_WRONLY | O_NONBLOCK);
+        if (fcli != -1 ) break;
+        printf("[ERROR - SERVER] Failed on client %s : %s\n", name, strerror(errno));
+    }
+    return fcli;
+}
+
+ssize_t slait(char *buffer_c, size_t len, int fh) {
+
+    ssize_t written_count = 0, written_tfs = 0;
+
+    while(1) {
+
+        written_tfs = read(fh, buffer_c + written_count, len);  
+
+        if (written_tfs == -1) {
+            printf("[ERROR - SLAIT] Error reading file, %s\n", strerror(errno));
+            return written_tfs;
+        }
+
+        else if (written_tfs == 0) {
+            printf("[INFO - SLAIT] Slait EOF\n");
+            return written_tfs;
+        }
+
+        written_count += written_tfs;
+
+        if (written_count >= len)
+            break;
+    }
+    return written_tfs;
 }
 
 int find_free_pos() {
@@ -107,16 +153,22 @@ void tfs_handle_mount(char name[]) {
         exit(EXIT_FAILURE);
     }  
 
+    printf("[INFO - SERVER] Open pipe from client %s\n", name);
+
     // OPEN CLIENT'S PIPE
-    if ((fcli = open(name, O_WRONLY)) < 0) {
+    /*while ((fcli = open(name, O_WRONLY | O_NONBLOCK)) < 0) {
         printf("[ERROR - SERVER] Failed on client %s : %s\n", name, strerror(errno));
         // ERROR : OPEN CLIENT PIPE
         // CAUSES : ENOENT, EINTR
         // HANDLE : ENOENT -> keep trying until open is successfull
         //          EINTR -> retry until success (TEMP_FAILURE_RETRY like)
-        return; 
+
+        //return; 
         //exit(EXIT_FAILURE);
-    }
+    }*/
+    fcli = slait_open(name);
+
+    printf("[INFO - SERVER] Number of sessions : %d\n", open_sessions);
 
     if (open_sessions == S) {
         printf("[ERROR - SERVER] Reached limit number of sessions, please wait\n");
@@ -539,9 +591,7 @@ void tfs_thread_mount(slave_t *slave) {
         exit(EXIT_FAILURE);
     }
 
-    pthread_mutex_lock(&global_mutex);
-    open_sessions++;
-    pthread_mutex_unlock(&global_mutex);
+    increment_sessions();
 
     printf("[INFO - SERVER] (%d) CHECKPOINT EXITING THREAD MOUNT\n", slave->session_id);
 
@@ -837,8 +887,9 @@ void solve_request(slave_t *slave) {
         printf("[INFO - SERVER] Wake up thread %d\n", slave->session_id);
 
         slave->wake_up = 0;
-        int command = slave->request.op_code;
         pthread_mutex_unlock(&slave->slave_mutex);
+
+        int command = slave->request.op_code;
 
         switch(command) {
             // nao esquecer de settar a wake_up var a 0 again
@@ -969,7 +1020,7 @@ int main(int argc, char **argv) {
     printf("[INFO - SERVER] Starting TecnicoFS server with pipe called %s\n", server_pipe);
 
     if (unlink(server_pipe) != 0 && errno != ENOENT) {
-        fprintf(stderr, "[ERROR - SERVER]: unlink(%s) failed: %s\n", server_pipe, strerror(errno));
+        printf("[ERROR - SERVER]: unlink(%s) failed: %s\n", server_pipe, strerror(errno));
         exit(EXIT_FAILURE);
     }
 
