@@ -21,9 +21,6 @@ static char free_blocks[DATA_BLOCKS];
 static open_file_entry_t open_file_table[MAX_OPEN_FILES];
 static char free_open_file_entries[MAX_OPEN_FILES];
 
-static int open_files;
-static pthread_cond_t open_files_cond;
-static pthread_mutex_t open_files_var_mutex;
 
 static inline bool valid_inumber(int inumber) {
     return inumber >= 0 && inumber < INODE_TABLE_SIZE;
@@ -68,11 +65,6 @@ static void insert_delay() {
  * Initializes FS state
  */
 void state_init() {
-
-    open_files = 0;
-
-    pthread_cond_init(&open_files_cond, NULL);
-    pthread_mutex_init(&open_files_var_mutex, NULL);
 
     for (size_t i = 0; i < INODE_TABLE_SIZE; i++) {
         freeinode_ts[i] = FREE;
@@ -310,18 +302,14 @@ void *data_block_get(int block_number) {
  * Returns: file handle if successful, -1 otherwise
  */
 int add_to_open_file_table(int inumber, size_t offset) {
-    pthread_mutex_lock(&open_files_var_mutex);
     for (int i = 0; i < MAX_OPEN_FILES; i++) {
         if (free_open_file_entries[i] == FREE) {
             free_open_file_entries[i] = TAKEN;
-            open_files++;
             open_file_table[i].of_inumber = inumber;
             open_file_table[i].of_offset = offset;
-            pthread_mutex_unlock(&open_files_var_mutex);
             return i;
         }
     }
-    pthread_mutex_unlock(&open_files_var_mutex);
     return -1;
 }
 
@@ -335,12 +323,7 @@ int remove_from_open_file_table(int fhandle) {
         free_open_file_entries[fhandle] != TAKEN) {
         return -1;
     }
-    pthread_mutex_lock(&open_files_var_mutex);
-    open_files--;
     free_open_file_entries[fhandle] = FREE;
-
-    if (open_files == 0) pthread_cond_signal(&open_files_cond);
-    pthread_mutex_unlock(&open_files_var_mutex);
 
     return 0;
 }
@@ -356,25 +339,3 @@ open_file_entry_t *get_open_file_entry(int fhandle) {
     }
     return &open_file_table[fhandle];
 }
-
-
-int get_open_files() {
-    return open_files;
-}
-
-int lock_mutex() {
-    return pthread_mutex_lock(&open_files_var_mutex);
-}
-
-int unlock_mutex() {
-    return pthread_mutex_unlock(&open_files_var_mutex);
-}
-
-void set_cond_wait() {
-    while(get_open_files() != 0) {
-        pthread_cond_wait(&open_files_cond, &open_files_var_mutex);
-    }
-    
-}
-
-

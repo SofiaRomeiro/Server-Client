@@ -516,7 +516,9 @@ void tfs_handle_open() {
 
 }
 
-void tfs_handle_shutdown_after_all_close() {
+int tfs_handle_shutdown_after_all_close() {
+
+    printf("[INFO - SERVER] CHECKPOINT ARRIVING SHUTDOWN\n");    
 
     char buffer[SIZE];
     char aux_buffer[SIZE];
@@ -524,7 +526,7 @@ void tfs_handle_shutdown_after_all_close() {
     memset(buffer, '\0', sizeof(buffer));
     memset(aux_buffer, '\0', sizeof(aux_buffer));
 
-    ssize_t size_read = slait(buffer, SIZE, fserv);
+    ssize_t size_read = slait(buffer, sizeof(int), fserv);
     if (size_read == -1) {
         // ERROR : READING CLIENT REQUEST
         // CAUSES : EBADF, EINTR, ENOENT
@@ -547,6 +549,10 @@ void tfs_handle_shutdown_after_all_close() {
     pthread_cond_signal(&slaves[session_id].work_cond);
 
     pthread_mutex_unlock(&slaves[session_id].slave_mutex);
+
+    printf("[INFO - SERVER] CHECKPOINT EXITING SHUTDOWN\n");    
+
+    return 0;
 
 }
 
@@ -782,7 +788,7 @@ void tfs_thread_read(slave_t *slave) {
             //          ENOENT -> CLOSE AND OPEN CLIENT (?)
             //          EINTR -> TEMP_FAILURE_RETRY like
     }
-    printf("[INFO - SERVER] CHECKPOINT THREAD READ\n");
+    printf("[INFO - SERVER] CHECKPOINT EXITING THREAD READ\n");
 
 }
 
@@ -836,7 +842,7 @@ void tfs_thread_write(slave_t *slave) {
 
 }
 
-void tfs_thread_shutdown_after_all_close(slave_t *slave) {
+int tfs_thread_shutdown_after_all_close(slave_t *slave) {
 
     char buffer[SIZE];
 
@@ -851,6 +857,7 @@ void tfs_thread_shutdown_after_all_close(slave_t *slave) {
         // ERROR : OPEN FILE SYSTEM
         // CAUSES : INTERNAL ERROR
         // HANDLE : responde to client, move on
+        return -1;
     }
 
     memset(buffer, '\0', sizeof(buffer));
@@ -869,7 +876,10 @@ void tfs_thread_shutdown_after_all_close(slave_t *slave) {
             //          EBADF -> same handle as EPIPE?
             //          ENOENT -> CLOSE AND OPEN CLIENT (?)
             //          EINTR -> TEMP_FAILURE_RETRY like
+        return -1;
     }
+
+    return ret;
 
 }
 
@@ -938,8 +948,10 @@ void solve_request(slave_t *slave) {
             case (TFS_OP_CODE_SHUTDOWN_AFTER_ALL_CLOSED):
 
                 printf("[INFO - SERVER] : Calling thread shutdown...\n");
-                tfs_thread_shutdown_after_all_close(slave);
-
+                if (tfs_thread_shutdown_after_all_close(slave) == 0) {
+                    printf("[INFO - SERVER] Tfs Shutdown concluded with success on thread side\n");
+                }
+                return;
             break;
 
             default:
@@ -1115,8 +1127,9 @@ int main(int argc, char **argv) {
             case (TFS_OP_CODE_SHUTDOWN_AFTER_ALL_CLOSED):
 
                 printf("[INFO - SERVER] : Calling shutdown...\n");
-                tfs_handle_shutdown_after_all_close();
-
+                if (tfs_handle_shutdown_after_all_close() == 0) {
+                    return 0;
+                }
             break;
 
             default:
@@ -1125,9 +1138,7 @@ int main(int argc, char **argv) {
 
 
         }
-    }
-
-    
+    }   
 
     return 0;
 }
