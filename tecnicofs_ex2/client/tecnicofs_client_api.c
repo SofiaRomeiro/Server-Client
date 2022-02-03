@@ -8,6 +8,32 @@ static int fcli;
 static int fserv;
 static int session_id = -1;
 
+ssize_t slait(char *buffer_c, size_t len, int fh) {
+
+    ssize_t written_count = 0, written_tfs = 0;
+
+    while(1) {
+
+        written_tfs = read(fh, buffer_c + written_count, len);  
+
+        if (written_tfs == -1) {
+            printf("[ERROR - SLAIT] Error reading file, %s\n", strerror(errno));
+            return written_tfs;
+        }
+
+        else if (written_tfs == 0) {
+            printf("[INFO - SLAIT] Slait EOF\n");
+            return written_tfs;
+        }
+
+        written_count += written_tfs;
+
+        if (written_count >= len)
+            break;
+    }
+    return written_tfs;
+}
+
 int tfs_mount(char const *client_pipe_path, char const *server_pipe_path) {
 
     printf("[INFO - API] (%d) Calling api mount...\n", getpid());
@@ -52,6 +78,8 @@ int tfs_mount(char const *client_pipe_path, char const *server_pipe_path) {
         return -1;
     } 
 
+    printf("[INFO - API] Waiting for server response...\n");
+
     // RECEIVE SERVER RESPONSE
     ssize_t ret = slait(buffer, sizeof(int), fcli); 
     if (ret == -1) {
@@ -61,7 +89,7 @@ int tfs_mount(char const *client_pipe_path, char const *server_pipe_path) {
 
     session_id = atoi(buffer); 
     if (session_id < 0) {
-        printf("[ERROR - API] Invalid session id : %d\n", session_id);
+        printf("[ERROR - API] (%d) Invalid session id : %d\n", getpid(), session_id);
         return -1;
     }
 
@@ -119,7 +147,6 @@ int tfs_open(char const *name, int flags) {
     char filename[BUFFER_SIZE];
     memset(filename, '\0', sizeof(filename));
     memcpy(filename, name, sizeof(filename));
-
     size_t len = 0;
 
     // OP_CODE
@@ -144,8 +171,9 @@ int tfs_open(char const *name, int flags) {
 
     ssize_t size_written = write(fserv, buffer, len);
 
-    if (size_written < 0) {
+    if (size_written < 0 || size_written < len) {
         printf("[ERROR - API] Error writing : %s\n", strerror(errno));
+        return -1;
     }
 
     printf("[INFO API] Writting open args...\n");
