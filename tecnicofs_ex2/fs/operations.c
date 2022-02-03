@@ -6,12 +6,15 @@
 #include <string.h>
 
 static pthread_mutex_t single_global_lock = PTHREAD_MUTEX_INITIALIZER;
-static destroy_call_state_t tfs_destroy_all_closed_called;
+static destroy_call_state_t called_destroy;
+static pthread_mutex_t called_destroy_mutex = PTHREAD_MUTEX_INITIALIZER;
+static pthread_cond_t called_destroy_cond = PTHREAD_COND_INITIALIZER;
+static int open_files;
 
 int tfs_init() {
 
-    tfs_destroy_all_closed_called = INIT;
-
+    called_destroy = INIT;
+    open_files = 0;
     state_init();
 
     /* create root inode */
@@ -36,21 +39,23 @@ int tfs_destroy_after_all_closed() {
 
     /* TO DO: implement this */
 
-    if (pthread_mutex_lock(&single_global_lock) != 0) {
+    if (pthread_mutex_lock(&called_destroy_mutex) != 0) {
         printf("[ tfs_destroy_after_all_closed ] Failed locking mutex\n");
         return -1;
     }
 
-    tfs_destroy_all_closed_called = DESTROY;
+    called_destroy = DESTROY;
 
-    if (pthread_mutex_unlock(&single_global_lock) != 0) {
+    printf("[INFO - OPERATIONS] Open files = %d\n", open_files);
+
+    while(open_files != 0) {
+        pthread_cond_wait(&called_destroy_cond, &called_destroy_mutex);
+    }
+
+    if (pthread_mutex_unlock(&called_destroy_mutex) != 0) {
         printf("[ tfs_destroy_after_all_closed ] Failed locking mutex\n");
         return -1;
     }
-
-    lock_mutex();    
-    set_cond_wait();
-    unlock_mutex();
     
     tfs_destroy();
 
@@ -137,14 +142,24 @@ static int _tfs_open_unsynchronized(char const *name, int flags) {
 
 int tfs_open(char const *name, int flags) {
 
+    int ret;
+
     if (pthread_mutex_lock(&single_global_lock) != 0) {
         printf("[ tfs_open ] Failed locking mutex\n");
         return -1;
     }
+    if (pthread_mutex_lock(&called_destroy_mutex) != 0) {
+        printf("[ tfs_open ] Failed locking mutex\n");
+        return -1;
+    }
 
-    if (tfs_destroy_all_closed_called == DESTROY) {
+    if (called_destroy == DESTROY) {
         printf("[ tfs_open ] (%s) TFS already destroyed!\n", name);
 
+        if (pthread_mutex_unlock(&called_destroy_mutex) != 0) {
+            printf("[ tfs_open ] Failed unlocking mutex\n");
+            return -1;
+        }
         if (pthread_mutex_unlock(&single_global_lock) != 0) {
             printf("[ tfs_open ] Failed unlocking mutex\n");
             return -1;
@@ -153,7 +168,25 @@ int tfs_open(char const *name, int flags) {
         return -1;
     }
         
-    int ret = _tfs_open_unsynchronized(name, flags);
+    if ((ret = _tfs_open_unsynchronized(name, flags)) == -1) {
+        if (pthread_mutex_unlock(&called_destroy_mutex) != 0) {
+            printf("[ tfs_open ] Failed unlocking mutex\n");
+            return -1;
+        }
+        if (pthread_mutex_unlock(&single_global_lock) != 0) {
+            printf("[ tfs_open ] Failed unlocking mutex\n");
+            return -1;
+        }       
+
+        return -1;
+    }
+
+    open_files++;
+
+    if (pthread_mutex_unlock(&called_destroy_mutex) != 0) {
+        printf("[ tfs_open ] Failed unlocking mutex\n");
+        return -1;
+    }
     if (pthread_mutex_unlock(&single_global_lock) != 0) {
         printf("[ tfs_open ] Failed unlocking mutex\n");
         return -1;
@@ -163,10 +196,33 @@ int tfs_open(char const *name, int flags) {
 }
 
 int tfs_close(int fhandle) {
+
+    int r;
+
     if (pthread_mutex_lock(&single_global_lock) != 0)
         return -1;
-    int r = remove_from_open_file_table(fhandle);
+    if (pthread_mutex_lock(&called_destroy_mutex) != 0)
+        return -1;
+
+    if((r = remove_from_open_file_table(fhandle)) == -1) {
+        if (pthread_mutex_unlock(&single_global_lock) != 0)
+            return -1;
+        if (pthread_mutex_unlock(&called_destroy_mutex) != 0)
+            return -1;
+    }
+
+    open_files--;
+
+    printf("[INFO - SERVER] Flag destroy state = %d\n", called_destroy);    
+    printf("[INFO - SERVER] Open files at tfs_close = %d\n", open_files);
+
+    if (open_files == 0 && called_destroy == DESTROY) {
+        pthread_cond_broadcast(&called_destroy_cond);
+    }
+
     if (pthread_mutex_unlock(&single_global_lock) != 0)
+        return -1;
+    if (pthread_mutex_unlock(&called_destroy_mutex) != 0)
         return -1;
 
     return r;
@@ -216,13 +272,6 @@ static ssize_t _tfs_write_unsynchronized(int fhandle, void const *buffer,
 }
 
 ssize_t tfs_write(int fhandle, void const *buffer, size_t to_write) {
-
-    /*
-    if (tfs_destroy_all_closed_called == DESTROY) {
-        printf("[ tfs_read ] TFS already destroyed!\n");
-        return -1;
-    }
-    */
     
     if (pthread_mutex_lock(&single_global_lock) != 0) {
         printf("[ tfs_write ] Failed locking mutex...\n");

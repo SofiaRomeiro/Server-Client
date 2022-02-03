@@ -43,7 +43,6 @@ int main(int argc, char **argv) {
         r = tfs_write(f, str, strlen(str));
         assert(r == strlen(str));;
         assert(tfs_close(f) != -1);
-        assert(tfs_unmount() == 0);
         exit(0);
     } 
     else if (pid1 < 0) {
@@ -51,19 +50,22 @@ int main(int argc, char **argv) {
         exit(EXIT_FAILURE);
     }
 
+    sleep(1);
+
     pid2 = fork();
     if (pid2 == 0) {
         assert(tfs_mount(argv[2], argv[6]) == 0);
         f = tfs_open(path2, TFS_O_CREAT);
         assert(f != -1);
         assert(tfs_close(f) != -1);
-        assert(tfs_unmount() == 0);
         exit(0);
     } 
     else if (pid2 < 0) {
         printf("Error forking: %s\n", strerror(errno));
         exit(EXIT_FAILURE);
     }
+
+    sleep(1);
 
     pid3 = fork();
     if (pid3 == 0) {
@@ -72,14 +74,14 @@ int main(int argc, char **argv) {
         assert(f != -1);
         r = tfs_write(f, str, strlen(str));
         assert(r == strlen(str));
-        assert(tfs_close(f) != -1);
-        assert(tfs_unmount() == 0);
         exit(0);
     } 
     else if (pid3 < 0) {
         printf("Error forking: %s\n", strerror(errno));
         exit(EXIT_FAILURE);
     }
+
+    sleep(1);
 
     pid4 = fork();
     if (pid4 == 0) {
@@ -95,8 +97,6 @@ int main(int argc, char **argv) {
         assert(r == strlen(str));
         buffer[r] = '\0';
         assert(strcmp(buffer, str) == 0);
-        assert(tfs_close(f) != -1);
-        assert(tfs_unmount() == 0);
         exit(0);
     } 
     else if (pid4 < 0) {
@@ -104,20 +104,17 @@ int main(int argc, char **argv) {
         exit(EXIT_FAILURE);
     }
 
+    sleep(1);
+
     pid5 = fork();
     if (pid5 == 0) {
-        assert(tfs_mount(argv[5], argv[6]) == 0);
+        assert(tfs_mount(argv[5], argv[6]) == -1);
         f = tfs_open(path5, TFS_O_CREAT);
-        assert(f != -1);
+        assert(f == -1);
         r = tfs_write(f, str, strlen(str));
-        assert(r == strlen(str));
-        assert(tfs_close(f) != -1);
-        assert(tfs_unmount() == 0);
-        assert(tfs_mount(argv[2], argv[6]) == 0);
-        f = tfs_open(path2, TFS_O_CREAT);
-        assert(f != -1);
-        assert(tfs_close(f) != -1);
-        assert(tfs_unmount() == 0);
+        assert(r == -1);
+        assert(tfs_close(f) == -1);
+        assert(tfs_unmount() == -1);
         exit(0);
     } 
     else if (pid5 < 0) {

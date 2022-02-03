@@ -36,7 +36,7 @@ ssize_t slait(char *buffer_c, size_t len, int fh) {
 
 int tfs_mount(char const *client_pipe_path, char const *server_pipe_path) {
 
-    printf("[INFO - API] (%d) Calling api mount...\n", getpid());
+    //printf("[INFO - API] (%d) Calling api mount...\n", getpid());
 
     char buffer[sizeof(char) + NAME_SIZE];
     memset(buffer, '\0', sizeof(buffer));
@@ -78,7 +78,7 @@ int tfs_mount(char const *client_pipe_path, char const *server_pipe_path) {
         return -1;
     } 
 
-    printf("[INFO - API] Waiting for server response...\n");
+    //printf("[INFO - API] Waiting for server response...\n");
 
     // RECEIVE SERVER RESPONSE
     ssize_t ret = slait(buffer, sizeof(int), fcli); 
@@ -98,8 +98,11 @@ int tfs_mount(char const *client_pipe_path, char const *server_pipe_path) {
 
 int tfs_unmount() {
 
-    printf("[INFO - API] (%d) Calling api unmount...\n", getpid());
-    
+    //printf("[INFO - API] (%d) Calling api unmount...\n", getpid());
+    if (session_id == -1) {
+        printf("[INFO - API] Unmount : Invalid session id\n");
+        return -1;
+    } 
     char buffer[sizeof(char) + sizeof(int)];
     char aux[sizeof(char) + sizeof(int)];
     memset(buffer, '\0', sizeof(buffer));
@@ -131,14 +134,19 @@ int tfs_unmount() {
         return -1;
     }
 
-    printf("[INFO - API] Client %d is dead\n", getpid());
+    //printf("[INFO - API] Client %d is dead\n", getpid());
 
     return 0;  
 }
 
 int tfs_open(char const *name, int flags) {
 
-    printf("[INFO - API] (%d) Calling api open...\n", getpid());
+    //printf("[INFO - API] (%d) Calling api open...\n", getpid());
+
+    if (session_id == -1) {
+        printf("[INFO - API] Open : Invalid session id\n");
+        return -1;
+    } 
     
     char buffer[sizeof(char) + sizeof(int) + NAME_SIZE + sizeof(int)];
     memset(buffer, '\0', sizeof(buffer));
@@ -176,7 +184,7 @@ int tfs_open(char const *name, int flags) {
         return -1;
     }
 
-    printf("[INFO API] Writting open args...\n");
+    //printf("[INFO API] Writting open args...\n");
 
     memset(buffer, '\0', sizeof(buffer));
 
@@ -185,7 +193,7 @@ int tfs_open(char const *name, int flags) {
         printf("[ERROR - API] Error reading : %s\n", strerror(errno));
     }
 
-    printf("[INFO API] Readed open response...\n");
+    //printf("[INFO API] Readed open response...\n");
 
     int fhandler = atoi(buffer);
     if (fhandler < 0) return -1;
@@ -195,7 +203,11 @@ int tfs_open(char const *name, int flags) {
 
 int tfs_close(int fhandle) {
 
-    printf("[INFO - API] (%d) Calling api close...\n", getpid());
+    //printf("[INFO - API] (%d) Calling api close...\n", getpid());
+    if (session_id == -1) {
+        printf("[INFO - API] Close : Invalid session id\n");
+        return -1;
+    } 
 
     size_t len = 0;
     char buffer[sizeof(char) + 2 * sizeof(int)]; // 2 * sizeof(int)??
@@ -241,7 +253,11 @@ int tfs_close(int fhandle) {
 
 ssize_t tfs_write(int fhandle, void const *buffer, size_t len) {
 
-    printf("[INFO - API] (%d) Calling api write...\n", getpid());
+    //printf("[INFO - API] (%d) Calling api write...\n", getpid());
+    if (session_id == -1) {
+        printf("[INFO - API] Write : Invalid session id\n");
+        return -1;
+    } 
     
     //size_t buffer_size = 1 + 4 + 4 + 4 + len + 1;
     size_t buffer_size = sizeof(char) + (3 * sizeof(int)) + len + sizeof(char);
@@ -301,7 +317,11 @@ ssize_t tfs_write(int fhandle, void const *buffer, size_t len) {
 
 ssize_t tfs_read(int fhandle, void *buffer, size_t len) {
 
-    printf("[INFO - API] (%d) Calling api read...\n", getpid());
+    //printf("[INFO - API] (%d) Calling api read...\n", getpid());
+    if (session_id == -1) {
+        printf("[INFO - API] Read : Invalid session id\n");
+        return -1;
+    } 
 
     size_t buffer_size = (2 * sizeof(char)) + (3 * sizeof(int));
     size_t offset = 0;
@@ -365,13 +385,18 @@ ssize_t tfs_read(int fhandle, void *buffer, size_t len) {
 
 int tfs_shutdown_after_all_closed() {
 
+    if (session_id == -1) {
+        printf("[INFO - API] Shutdown : Invalid session id\n");
+        return -1;
+    } 
+
     char buffer[sizeof(char) + sizeof(int)];
     memset(buffer, '\0', sizeof(buffer));
     char aux[sizeof(int)];
     memset(aux, '\0', sizeof(aux));
 
     // OP_CODE
-    char code = TFS_OP_CODE_READ + '0';
+    char code = TFS_OP_CODE_SHUTDOWN_AFTER_ALL_CLOSED + '0';
     memcpy(buffer, &code, sizeof(char)); 
 
     // SESSION_ID
