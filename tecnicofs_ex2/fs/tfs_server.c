@@ -12,7 +12,8 @@
 #include <pthread.h>
 
 // Specifies the max number of sessions existing simultaneously
-#define S 10
+
+#define S 3
 #define SIZE 100
 #define PERMISSIONS 0777
 #define SIZE_OF_CHAR sizeof(char)
@@ -390,7 +391,15 @@ void tfs_handle_read() {
         //          EINTR -> try again
         //          ENOENT -> same as EBADF ???
     }
+    
     int fhandle = atoi(buffer);
+    pthread_rwlock_rdlock(&read_lock);
+    int fcli = sessions[session_id].fhandler; // this fhandler belongs to the client itself
+    pthread_rwlock_unlock(&read_lock);
+    if (fhandle == -1) {
+        slait_write(fcli, buffer, sizeof(int));
+        return;
+    }
 
     // LEN
     ret = slait(buffer, sizeof(int), fserv);
@@ -445,7 +454,16 @@ void tfs_handle_write() {
         //          ENOENT -> same as EBADF ???
         exit(EXIT_FAILURE);
     }
+
     int fhandle = atoi(buffer);
+
+    pthread_rwlock_rdlock(&read_lock);
+    int fcli = sessions[session_id].fhandler; // this fhandler belongs to the client itself
+    pthread_rwlock_unlock(&read_lock);
+    if (fhandle == -1) {
+        slait_write(fcli, buffer, sizeof(int));
+        return;
+    }
 
     // LEN
     ret = slait(buffer, sizeof(int), fserv);
@@ -522,6 +540,14 @@ void tfs_handle_close() {
     }
     
     int fhandle = atoi(buffer);
+
+    pthread_rwlock_rdlock(&read_lock);
+    int fcli = sessions[session_id].fhandler; // this fhandler belongs to the client itself
+    pthread_rwlock_unlock(&read_lock);
+    if (fhandle == -1) {
+        slait_write(fcli, buffer, sizeof(int));
+        return;
+    }
 
     // REQUEST PARSED
 
@@ -632,7 +658,7 @@ int tfs_handle_shutdown_after_all_close() {
 
     pthread_mutex_unlock(&slaves[session_id].slave_mutex);
 
-    printf("[INFO - SERVER] CHECKPOINT EXITING SHUTDOWN\n");    
+    printf("[INFO - SERVER] (%d) CHECKPOINT EXITING SHUTDOWN\n", session_id);   
 
     return 0;
 
@@ -641,7 +667,7 @@ int tfs_handle_shutdown_after_all_close() {
 void tfs_thread_mount(slave_t *slave) {
 
     // POSSIVEL SOLUCAO
-    printf("[INFO - SERVER] CHECKPOINT ARRIVING TO THREAD MOUNT\n");
+    printf("[INFO - SERVER] (%d) CHECKPOINT ARRIVING TO THREAD MOUNT\n", slave->session_id);
 
 
     // O session id deve sempre ser positivo para a thread poder ser chamada,
@@ -707,7 +733,7 @@ void tfs_thread_unmount(slave_t *slave) {
     pthread_mutex_unlock(&global_mutex);
 
     printf("[INFO - SERVER] Open sessions on unmount = %d\n", open_sessions);
-    printf("[INFO - SERVER] CHECKPOINT THREAD UNMOUNT\n");
+    printf("[INFO - SERVER] (%d) CHECKPOINT THREAD UNMOUNT\n", session_id);
 
 }
 
@@ -723,36 +749,14 @@ void tfs_thread_open(slave_t *slave) {
     // OPEN FILE IN TFS
     int tfs_fhandler = tfs_open(aux, flags);
 
-    if (tfs_fhandler == -1) {
-        printf("[ERROR - SERVER] Open tfs\n");
-        // ERROR : OPEN FILE SYSTEM
-        // CAUSES : INTERNAL ERROR
-        // HANDLE : responde to client, move on
-        exit(EXIT_FAILURE);
-    } 
-
-    pthread_rwlock_rdlock(&read_lock);
-
-    int fcli = sessions[session_id].fhandler; //this is client api fhandler
-
-    pthread_rwlock_unlock(&read_lock);
-
     memset(aux, '\0', SIZE);
     sprintf(aux, "%d", tfs_fhandler);
 
+    int fcli = sessions[session_id].fhandler; // this fhandler belongs to the client itself
+
     slait_write(fcli, aux, sizeof(int));
-    /*ssize_t write_size = write(fcli, aux, sizeof(int));
-    if (write_size < 0) {
-        printf("[ERROR - SERVER] Error writing : %s\n", strerror(errno));
-        // ERROR : WRITE ON CLIENT PIPE
-            // CAUSES : EPIPE, EBADF, ENOENT, EINTR
-            // HANDLE : EPIPE -> erase the client, declare him as dead
-            //          EBADF -> same handle as EPIPE?
-            //          ENOENT -> CLOSE AND OPEN CLIENT (?)
-            //          EINTR -> TEMP_FAILURE_RETRY like
-        exit(EXIT_FAILURE);
-    } */
-    printf("[INFO - SERVER] CHECKPOINT THREAD OPEN\n");
+
+    printf("[INFO - SERVER] (%d) CHECKPOINT EXITING THREAD OPEN\n", session_id);
 
 }
 
@@ -769,7 +773,6 @@ void tfs_thread_close(slave_t *slave) {
         // ERROR : CLOSING FILE SYSTEM
         // CAUSES : INTERNAL ERROR
         // HANDLE : responde to client, move on
-        exit(EXIT_FAILURE);
     } 
 
     pthread_rwlock_rdlock(&read_lock);
@@ -791,7 +794,7 @@ void tfs_thread_close(slave_t *slave) {
             //          ENOENT -> CLOSE AND OPEN CLIENT (?)
             //          EINTR -> TEMP_FAILURE_RETRY like
     } 
-    printf("[INFO - SERVER] CHECKPOINT THREAD CLOSE\n");
+    printf("[INFO - SERVER] (%d) CHECKPOINT THREAD CLOSE\n", session_id);
 
 }
 
@@ -804,16 +807,28 @@ void tfs_thread_read(slave_t *slave) {
     size_t len = slave->request.len;
     int fhandler = slave->request.fhandler;
 
+    pthread_rwlock_rdlock(&read_lock);
+    int fcli = sessions[session_id].fhandler; // this fhandler belongs to the client itself
+    pthread_rwlock_unlock(&read_lock);
+    if (fhandler == -1) {
+        slait_write(fcli, buffer, sizeof(int));
+        return;
+    }
+
     char ouput_tfs[sizeof(char) * len]; 
     memset(ouput_tfs, '\0', sizeof(ouput_tfs));
 
     ssize_t read_bytes = tfs_read(fhandler, ouput_tfs, len);
 
+    /*
     pthread_rwlock_rdlock(&read_lock);
     int fcli = sessions[session_id].fhandler;
     pthread_rwlock_unlock(&read_lock);
+    */
 
     memset(buffer, '\0', sizeof(buffer));
+
+    printf("[INFO - SERVER] Read bytes from tfs = %ld\n", read_bytes);
 
     if (read_bytes < 0)  {
         
@@ -855,7 +870,7 @@ void tfs_thread_read(slave_t *slave) {
             //          EINTR -> TEMP_FAILURE_RETRY like
     }
     */
-    printf("[INFO - SERVER] CHECKPOINT EXITING THREAD READ\n");
+    printf("[INFO - SERVER] (%d) CHECKPOINT EXITING THREAD READ\n", session_id);
 
 }
 
@@ -873,18 +888,28 @@ void tfs_thread_write(slave_t *slave) {
 
     free(slave->request.to_write);
  
+    pthread_rwlock_rdlock(&read_lock);
+    int fcli = sessions[session_id].fhandler; // this fhandler belongs to the client itself
+    pthread_rwlock_unlock(&read_lock);
+    
+    if (fhandler == -1) {
+        slait_write(fcli, buffer, sizeof(int));
+        return;
+    }
     ssize_t written = tfs_write(fhandler, to_write, len);
 
-    if (written < 0 ) {
+    if (written < 0) {
         // ERROR : WRITING ON FILE SYSTEM
         // CAUSES : INTERNAL ERROR
         // HANDLE : responde to client, move on
         exit(EXIT_FAILURE);
     } 
 
+    /*
     pthread_rwlock_rdlock(&read_lock);
-    int fcli = sessions[session_id].fhandler;
+    int fcli = sessions[session_id].fhandler; // this fhandler belongs to the client itself
     pthread_rwlock_unlock(&read_lock);
+    */
 
     memset(buffer, '\0', sizeof(buffer));
     sprintf(buffer, "%d", (int)written);
@@ -902,12 +927,12 @@ void tfs_thread_write(slave_t *slave) {
         exit(EXIT_FAILURE);
     }*/
 
-    printf("[INFO - SERVER] CHECKPOINT THREAD WRITE\n");
+    printf("[INFO - SERVER] (%d) CHECKPOINT THREAD WRITE\n", session_id);
 
 
 }
 
-int tfs_thread_shutdown_after_all_close(slave_t *slave) {
+void tfs_thread_shutdown_after_all_close(slave_t *slave) {
 
     char buffer[SIZE];
     int session_id = slave->session_id;
@@ -919,18 +944,17 @@ int tfs_thread_shutdown_after_all_close(slave_t *slave) {
         // ERROR : OPEN FILE SYSTEM
         // CAUSES : INTERNAL ERROR
         // HANDLE : responde to client, move on
-        return -1;
+        exit(EXIT_FAILURE);
     }
 
     memset(buffer, '\0', sizeof(buffer));
     sprintf(buffer, "%d", ret);
 
-    pthread_rwlock_rdlock(&read_lock);
     int fcli = sessions[session_id].fhandler;
-    pthread_rwlock_unlock(&read_lock);
-
     slait_write(fcli, buffer, sizeof(int));
-    /*
+
+    printf("[INFO - SERVER] THREAD SHUTDOWN RETURNING FROM OPS\n");
+    
     ssize_t write_size = write(fcli, buffer, sizeof(int));
     if (write_size == -1) {
         // ERROR : WRITE ON CLIENT PIPE
@@ -939,11 +963,9 @@ int tfs_thread_shutdown_after_all_close(slave_t *slave) {
             //          EBADF -> same handle as EPIPE?
             //          ENOENT -> CLOSE AND OPEN CLIENT (?)
             //          EINTR -> TEMP_FAILURE_RETRY like
-        return -1;
-    }*/
-
-    return ret;
-
+        exit(EXIT_FAILURE);
+    }
+    exit(EXIT_SUCCESS);
 }
 
 void solve_request(slave_t *slave) {
@@ -964,6 +986,8 @@ void solve_request(slave_t *slave) {
         pthread_mutex_unlock(&slave->slave_mutex);
 
         int command = slave->request.op_code;
+
+        printf("[INFO - SERVER] (From : %d) Solve request number %d\n", slave->session_id, command);
 
         switch(command) {
             // nao esquecer de settar a wake_up var a 0 again
@@ -1011,10 +1035,7 @@ void solve_request(slave_t *slave) {
             case (TFS_OP_CODE_SHUTDOWN_AFTER_ALL_CLOSED):
 
                 printf("[INFO - SERVER] : Calling thread shutdown...\n");
-                if (tfs_thread_shutdown_after_all_close(slave) == 0) {
-                    printf("[INFO - SERVER] Tfs Shutdown concluded with success on thread side\n");
-                }
-                return;
+                tfs_thread_shutdown_after_all_close(slave);
             break;
 
             default:
@@ -1115,7 +1136,7 @@ int main(int argc, char **argv) {
         raise(SIGINT);
     }
 
-    printf("PASSING SIGNAL REDEFINITION\n");
+    //printf("PASSING SIGNAL REDEFINITION\n");
         
     if (tfs_init() == -1) {
         printf("[ERROR - SERVER] TFS init failed\n");
@@ -1128,7 +1149,7 @@ int main(int argc, char **argv) {
         }
     }
 
-    printf("PASSING INTERRUPT\n");
+    //printf("PASSING INTERRUPT\n");
 
     // ----------------------------------------- START RESPONDING TO REQUESTS --------------------------------------
 
@@ -1200,9 +1221,7 @@ int main(int argc, char **argv) {
             case (TFS_OP_CODE_SHUTDOWN_AFTER_ALL_CLOSED):
 
                 printf("[INFO - SERVER] : Calling shutdown...\n");
-                if (tfs_handle_shutdown_after_all_close() == 0) {
-                    return 0;
-                }
+                tfs_handle_shutdown_after_all_close();
             break;
 
             default:
