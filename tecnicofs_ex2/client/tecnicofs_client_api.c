@@ -419,5 +419,5 @@ int tfs_shutdown_after_all_closed() {
     int ret_aux = atoi(aux);
     if (ret_aux < 0) return -1;
 
-    return -1;
+    return 0;
 }

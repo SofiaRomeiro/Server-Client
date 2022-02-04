@@ -57,16 +57,14 @@ pthread_rwlock_t read_lock = PTHREAD_RWLOCK_INITIALIZER;
 pthread_mutex_t global_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 void immortal(int s) {
-    //signal(SIGINT, SIG_IGN);
-    printf("[INFO - SERVER] Do you really wanna kill my server? y or n\n");
-    //signal(SIGINT, SIG_IGN);
+    printf("[INFO - SERVER] Do you really wanna kill my server? y or n\n\n===> PS: From this point, it's immortal 3:) <===\n");
     char ch = '\0';
     scanf("%c", &ch);
     printf("char : %c\n", ch);
     if (ch == 'y')
         exit(EXIT_SUCCESS);
 
-    signal(SIGINT, immortal);
+    signal(SIGINT, SIG_IGN);
 }
 
 void erase_client(int session_id) {
