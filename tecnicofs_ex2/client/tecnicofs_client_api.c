@@ -50,10 +50,12 @@ int tfs_mount(char const *client_pipe_path, char const *server_pipe_path) {
     memcpy(buffer + sizeof(char), client_pipe_path, NAME_SIZE);
 
     // SEND MESSAGE
-    if ((fserv = open(server_pipe_path, O_WRONLY)) < 0) {
-        printf("[ERROR - API] Error opening server: %s\n", strerror(errno));
-        return -1;
+    while(1) {
+        if ((fserv = open(server_pipe_path, O_WRONLY)) >= 0) {
+            break;
+        }
     }
+    
 
     if (write(fserv, buffer, sizeof(char) + NAME_SIZE) == -1) {
         printf("[ERROR - API] Error writing : %s\n", strerror(errno));
@@ -361,6 +363,8 @@ ssize_t tfs_read(int fhandle, void *buffer, size_t len) {
 
     memset(buffer_c, '\0', sizeof(buffer_c));
 
+    // RECEIVE MESSAGE FROM SERVER
+
     ssize_t ret = slait(buffer_c, sizeof(int), fcli);
     if (ret == -1) {
         printf("[ERROR - API] Error reading : %s\n", strerror(errno));
@@ -369,15 +373,23 @@ ssize_t tfs_read(int fhandle, void *buffer, size_t len) {
     memset(aux, '\0', sizeof(aux));
     memcpy(aux, buffer_c, sizeof(int));
 
-    size_t read_code = (size_t) atoi(aux);
+    // in case of returning error from server
+    ssize_t read_code = (ssize_t) atoi(aux);
 
-    memset(buffer_c, '\0', sizeof(buffer_c));
-    ret = slait(buffer_c, read_code, fcli);
+    if (read_code < 0) {
+        printf("[ERROR -API] Error reading from tfs system\n");
+        return -1;
+    }
+
+    // in case of sucess, copy directly to void *buffer
+    //memset(buffer_c, '\0', sizeof(buffer_c));
+    ret = slait(buffer, (size_t)read_code, fcli);
     if (ret == -1) {
         printf("[ERROR - API] Error reading : %s\n", strerror(errno));
+        return -1;
     }  
 
-    memcpy(buffer, buffer_c, read_code);
+    //memcpy(buffer, buffer_c, read_code);
 
     // READ ANSWER
     return (ssize_t)read_code;

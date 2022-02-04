@@ -56,6 +56,8 @@ int tfs_destroy_after_all_closed() {
         printf("[ tfs_destroy_after_all_closed ] Failed locking mutex\n");
         return -1;
     }
+
+    printf("[INFO - OPERATIONS] Open files after shutdown signal = %d\n", open_files);
     
     tfs_destroy();
 
