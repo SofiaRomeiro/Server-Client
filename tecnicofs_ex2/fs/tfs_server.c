@@ -57,17 +57,6 @@ slave_t slaves[S];
 pthread_rwlock_t read_lock = PTHREAD_RWLOCK_INITIALIZER;
 pthread_mutex_t global_mutex = PTHREAD_MUTEX_INITIALIZER;
 
-void immortal(int s) {
-    printf("[INFO - SERVER] Do you really wanna kill my server? y or n\n\n===> PS: From this point, it's immortal 3:) <===\n");
-    char ch = '\0';
-    scanf("%c", &ch);
-    printf("char : %c\n", ch);
-    if (ch == 'y')
-        exit(EXIT_SUCCESS);
-
-    signal(SIGINT, SIG_IGN);
-}
-
 void erase_client(int session_id) {
 
     if (session_id < 0) return; //client doesn't exist
@@ -235,6 +224,66 @@ int handle_error(int fcli) {
     return 0;
 }
 
+int handle_read_error(int fcli) {
+
+// HANDLE : EPIPE -> erase the client, declare him as dead
+//          EBADF -> same handle as EPIPE?
+//          ENOENT -> CLOSE AND OPEN CLIENT (?)
+//          EINTR -> TEMP_FAILURE_RETRY like
+//          ENXIO -> TEMP_FAILURE_RETRY like
+    // int fhandle = -1;
+    char *client_name;
+    int session_id = -1;
+
+    switch(errno) {
+        case(EBADF):
+            exit(EXIT_FAILURE);
+            break;
+
+        case(ESPIPE):
+            exit(EXIT_FAILURE);
+            break;
+
+        case(ENOENT):
+            if (close(fcli) == -1)
+            return -1;
+            client_name = find_client(fcli);
+            session_id = find_session_id(fcli);
+            fcli = slait_open(client_name);
+            sessions[session_id].fhandler = fcli;
+            return fcli;
+            break;   
+
+        case(EINTR):
+            if (close(fcli) == -1)
+            return -1;
+            client_name = find_client(fcli);
+            session_id = find_session_id(fcli);
+            fcli = slait_open(client_name);
+            sessions[session_id].fhandler = fcli;
+            return fcli;
+            break;
+
+        case(ENXIO):
+            if (close(fcli) == -1)
+            return -1;
+            client_name = find_client(fcli);
+            session_id = find_session_id(fcli);
+            fcli = slait_open(client_name);
+            sessions[session_id].fhandler = fcli;
+            return fcli;
+            break;
+
+        default: 
+            printf("[ERROR - SERVER] Unrecogized error : %s\n", strerror(errno));
+            exit(EXIT_FAILURE);
+            break;  
+    }   
+    return 0;
+}
+
+
+
 ssize_t slait_write(int fcli, char *buffer, size_t len) {
 
     ssize_t written_count = 0, written = 0;
@@ -248,53 +297,6 @@ ssize_t slait_write(int fcli, char *buffer, size_t len) {
 
             if ((fcli = handle_error(fcli)) == -1) 
                 return -1;
-            
-
-            /*switch(errno) {
-                case(EBADF):
-                    session_id = find_session_id(fcli);
-                    erase_client(session_id);
-                    return -1;
-                    break;
-
-                case(EPIPE):
-                    session_id = find_session_id(fcli);
-                    erase_client(session_id);
-                    return -1;
-                    break;
-
-                case(ENOENT):
-                    if (close(fcli) == -1)
-                    return -1;
-                    client_name = find_client(fcli);
-                    session_id = find_session_id(fcli);
-                    fcli = slait_open(client_name);
-                    sessions[session_id].fhandler = fcli;
-                    break;   
-
-                case(EINTR):
-                    if (close(fcli) == -1)
-                    return -1;
-                    client_name = find_client(fcli);
-                    session_id = find_session_id(fcli);
-                    fcli = slait_open(client_name);
-                    sessions[session_id].fhandler = fcli;
-                    break;
-
-                case(ENXIO):
-                    if (close(fcli) == -1)
-                    return -1;
-                    client_name = find_client(fcli);
-                    session_id = find_session_id(fcli);
-                    fcli = slait_open(client_name);
-                    sessions[session_id].fhandler = fcli;
-                    break;
-
-                default: 
-                    printf("[ERROR - SERVER] Unrecogized error : %s\n", strerror(errno));
-                    exit(EXIT_FAILURE);
-                    break;  
-            }*/
         }
 
         else if (written == 0) {
@@ -322,7 +324,7 @@ ssize_t slait(char *buffer_c, size_t len, int fcli) {
         if (written_tfs == -1) {
             printf("[ERROR - SLAIT] Error reading file, %s\n", strerror(errno));
             
-            if ((fcli = handle_error(fcli)) == -1) 
+            if ((fcli = handle_read_error(fcli)) == -1) 
                 return -1;
         }          
         else if (written_tfs == 0) {
@@ -554,10 +556,6 @@ void tfs_handle_write() {
     int fhandle = atoi(buffer);
 
     int fcli = sessions[session_id].fhandler; // this fhandler belongs to the client itself
-    if (fhandle == -1) {
-        slait_write(fcli, buffer, sizeof(int));
-        return;
-    }
 
     // LEN
     ret = slait(buffer, sizeof(int), fserv);
@@ -566,6 +564,24 @@ void tfs_handle_write() {
         return;
     }
     size_t len = (size_t) atoi(buffer);
+
+    memset(buffer, '\0', SIZE);
+
+    if (session_id == -1) {
+        sprintf(buffer, "%d", -1);
+        slait_write(fcli, buffer, sizeof(int));
+        return;
+    }
+    if (fhandle == -1) {
+        sprintf(buffer, "%d", -1);
+        slait_write(fcli, buffer, sizeof(int));
+        return;
+    }
+    if (len == -1) {
+        sprintf(buffer, "%d", -1);
+        slait_write(fcli, buffer, sizeof(int));
+        return;
+    }
 
     // TEXT TO WRITE ON TFS
     memset(buffer, '\0', len);
@@ -614,6 +630,17 @@ void tfs_handle_close() {
 
     int fcli = sessions[session_id].fhandler; // this fhandler belongs to the client itself
     if (fhandle == -1) {
+        slait_write(fcli, buffer, sizeof(int));
+        return;
+    }
+
+    if (session_id == -1) {
+        sprintf(buffer, "%d", -1);
+        slait_write(fcli, buffer, sizeof(int));
+        return;
+    }
+    if (fhandle == -1) {
+        sprintf(buffer, "%d", -1);
         slait_write(fcli, buffer, sizeof(int));
         return;
     }
@@ -668,6 +695,18 @@ void tfs_handle_open() {
     len += sizeof(int);
     int flags = atoi(aux);
 
+    if (session_id == -1) {
+        return;
+    }
+    if (len == -1) {
+        sprintf(buffer, "%d", -1);
+        session_id = find_session_id_by_name(name);
+        if (session_id == -1)
+            return;
+        slait_write(session_id, buffer, sizeof(int));
+        return;
+    }
+
     // REQUEST PARSED, LEAVE IT TO THREAD
 
     printf("[INFO - SERVER] (%d) CHECKPOINT OPEN : THREAD WORK\n", session_id);
@@ -704,6 +743,10 @@ int tfs_handle_shutdown_after_all_close() {
     // session_id
     memcpy(aux_buffer, buffer, sizeof(int));
     int session_id = atoi(aux_buffer);  
+
+    if (session_id == -1) {
+        return 0;
+    }
 
     // LET IT FOR THREADS
 
@@ -1106,11 +1149,6 @@ int main(int argc, char **argv) {
     if (signal(SIGPIPE, SIG_IGN) == SIG_ERR) {
         printf("[ERROR - SERVER] %s\n", strerror(errno));
         exit(EXIT_FAILURE);
-    }
-
-    if (signal(SIGINT, immortal) == SIG_ERR) {
-        printf("[ERROR - SERVER] %s\n", strerror(errno));
-        raise(SIGINT);
     }
         
     if (tfs_init() == -1) {
