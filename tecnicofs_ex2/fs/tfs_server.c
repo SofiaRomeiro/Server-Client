@@ -12,7 +12,11 @@
 #include <pthread.h>
 
 // Specifies the max number of sessions existing simultaneously
+<<<<<<< HEAD
 #define S 10
+=======
+#define S 3
+>>>>>>> eae51107c20376d863c3279ee3cced53fa9af6af
 #define SIZE 100
 #define PERMISSIONS 0777
 #define SIZE_OF_CHAR sizeof(char)

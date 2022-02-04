@@ -410,8 +410,9 @@ int tfs_shutdown_after_all_closed() {
     }
 
     memset(aux, '\0', sizeof(aux));
-
+    
     ssize_t ret = slait(aux, sizeof(int), fcli);
+    
     if (ret == -1) {
         printf("[ERROR - API] Error reading : %s\n", strerror(errno));
     } 
