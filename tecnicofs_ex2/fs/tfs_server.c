@@ -390,7 +390,14 @@ void tfs_handle_read() {
         //          EINTR -> try again
         //          ENOENT -> same as EBADF ???
     }
+
     int fhandle = atoi(buffer);
+    pthread_rwlock_rdlock(&read_lock);
+    int fcli = sessions[session_id].fhandler; // this fhandler belongs to the client itself
+    pthread_rwlock_unlock(&read_lock);
+    if (fhandle < 0) {
+        //???
+    }
 
     // LEN
     ret = slait(buffer, sizeof(int), fserv);
@@ -770,7 +777,6 @@ void tfs_thread_close(slave_t *slave) {
         // ERROR : CLOSING FILE SYSTEM
         // CAUSES : INTERNAL ERROR
         // HANDLE : responde to client, move on
-        exit(EXIT_FAILURE);
     } 
 
     pthread_rwlock_rdlock(&read_lock);
@@ -873,7 +879,15 @@ void tfs_thread_write(slave_t *slave) {
     memcpy(to_write, slave->request.to_write, len);
 
     free(slave->request.to_write);
- 
+
+    pthread_rwlock_rdlock(&read_lock);
+    int fcli = sessions[session_id].fhandler; // this fhandler belongs to the client itself
+    pthread_rwlock_unlock(&read_lock);
+    
+    if (fhandler < 0) {
+        slait_write(fcli, buffer, sizeof(int));
+        return 0;
+    }
     ssize_t written = tfs_write(fhandler, to_write, len);
 
     if (written < 0 ) {
@@ -883,9 +897,11 @@ void tfs_thread_write(slave_t *slave) {
         exit(EXIT_FAILURE);
     } 
 
+    /*
     pthread_rwlock_rdlock(&read_lock);
-    int fcli = sessions[session_id].fhandler;
+    int fcli = sessions[session_id].fhandler; // this fhandler belongs to the client itself
     pthread_rwlock_unlock(&read_lock);
+    */
 
     memset(buffer, '\0', sizeof(buffer));
     sprintf(buffer, "%d", (int)written);
@@ -1111,12 +1127,12 @@ int main(int argc, char **argv) {
         exit(EXIT_FAILURE);
     }
 
-    if (signal(SIGINT, immortal) == SIG_ERR) {
+    /*if (signal(SIGINT, immortal) == SIG_ERR) {
         printf("[ERROR - SERVER] %s\n", strerror(errno));
         raise(SIGINT);
-    }
+    }*/
 
-    printf("PASSING SIGNAL REDEFINITION\n");
+    //printf("PASSING SIGNAL REDEFINITION\n");
         
     if (tfs_init() == -1) {
         printf("[ERROR - SERVER] TFS init failed\n");
@@ -1129,7 +1145,7 @@ int main(int argc, char **argv) {
         }
     }
 
-    printf("PASSING INTERRUPT\n");
+    //printf("PASSING INTERRUPT\n");
 
     // ----------------------------------------- START RESPONDING TO REQUESTS --------------------------------------
 

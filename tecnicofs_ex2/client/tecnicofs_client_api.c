@@ -50,10 +50,12 @@ int tfs_mount(char const *client_pipe_path, char const *server_pipe_path) {
     memcpy(buffer + sizeof(char), client_pipe_path, NAME_SIZE);
 
     // SEND MESSAGE
-    if ((fserv = open(server_pipe_path, O_WRONLY)) < 0) {
-        printf("[ERROR - API] Error opening server: %s\n", strerror(errno));
-        return -1;
+    while(1) {
+        if ((fserv = open(server_pipe_path, O_WRONLY)) >= 0) {
+            break;
+        }
     }
+    
 
     if (write(fserv, buffer, sizeof(char) + NAME_SIZE) == -1) {
         printf("[ERROR - API] Error writing : %s\n", strerror(errno));
@@ -419,5 +421,5 @@ int tfs_shutdown_after_all_closed() {
     int ret_aux = atoi(aux);
     if (ret_aux < 0) return -1;
 
-    return -1;
+    return 0;
 }
