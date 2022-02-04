@@ -69,47 +69,47 @@ test2:
 test3:
 	@printf "\n"
 	@echo ------- client_server_simple_test ------------
-	./tests/client_server_simple_test
+	./tests/client_server_simple_test /tmp/cli /tmp/server
 
 test4:
 	@printf "\n"
 	@echo ------- client_server_error_1 ------------
-	./tests/client_server_error_1
+	./tests/client_server_error_1 /tmp/cli /tmp/server
 
 test5:
 	@printf "\n"
 	@echo ------- client_simple_test_fork ------------
-	./tests/client_simple_test_fork
+	./tests/client_simple_test_fork /tmp/cli /tmp/server
 
 test6:
 	@printf "\n"
 	@echo ------- 2_clients_same_protocol ------------
-	./tests/2_clients_same_protocol
+	./tests/2_clients_same_protocol /tmp/cli1 /tmp/cli2 /tmp/server
 
 test7:
 	@printf "\n"
 	@echo ------- 2_clients_different_protocol ------------
-	./tests/2_clients_different_protocol
+	./tests/2_clients_different_protocol /tmp/cli1 /tmp/cli2 /tmp/server
 
 test8:
 	@printf "\n"
 	@echo ------- 5_clients_different_protocol ------------
-	./tests/5_clients_different_protocol
+	./tests/5_clients_different_protocol /tmp/cli1 /tmp/cli2 /tmp/cli3 /tmp/cli4 /tmp/cli5 /tmp/server
 
 test9:
 	@printf "\n"
-	@echo ------- 2_clients_1_shutdown ------------
-	./tests/2_clients_1_shutdown
+	@echo ------- more_clients_than_supported ------------
+	./tests/more_clients_than_supported /tmp/cli1 /tmp/cli2 /tmp/cli3 /tmp/cli4 /tmp/cli5 /tmp/server
 
 test10:
 	@printf "\n"
-	@echo ------- more_clients_than_supported ------------
-	./tests/more_clients_than_supported
+	@echo ------- 2_clients_1_shutdown ------------
+	./tests/2_clients_1_shutdown /tmp/cli1 /tmp/cli2 /tmp/server
 
 test11:
 	@printf "\n"
 	@echo ------- shutdown_after_too_many_sessions_error_test ------------
-	./tests/shutdown_after_too_many_sessions_error_test
+	./tests/shutdown_after_too_many_sessions_error_test /tmp/cli1 /tmp/cli2 /tmp/cli3 /tmp/cli4 /tmp/server
 
 # The following target can be used to invoke clang-format on all the source and header
 # files. clang-format is a tool to format the source code based on the style specified 
