@@ -581,7 +581,7 @@ void tfs_handle_write() {
     slaves[session_id].request.op_code = TFS_OP_CODE_WRITE;
     slaves[session_id].request.fhandler = fhandle;
     slaves[session_id].request.len = len;
-    slaves[session_id].request.to_write = (char *)malloc(sizeof(char) * len);
+    memset(slaves[session_id].request.to_write, '\0', MAX_WRITE_SIZE);
     memcpy(slaves[session_id].request.to_write, buffer, len);
 
     slaves[session_id].wake_up = 1;
@@ -900,7 +900,7 @@ void tfs_thread_write(slave_t *slave) {
     memset(to_write, '\0', len);
     memcpy(to_write, slave->request.to_write, len);
 
-    free(slave->request.to_write);
+    memset(slave->request.to_write, '\0', MAX_WRITE_SIZE);
  
     int fcli = sessions[session_id].fhandler; // this fhandler belongs to the client itself
     
