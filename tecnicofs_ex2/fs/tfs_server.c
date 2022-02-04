@@ -12,7 +12,7 @@
 #include <pthread.h>
 
 // Specifies the max number of sessions existing simultaneously
-#define S 10
+#define S 3
 #define SIZE 100
 #define PERMISSIONS 0777
 #define SIZE_OF_CHAR sizeof(char)
@@ -399,8 +399,9 @@ void tfs_handle_read() {
     pthread_rwlock_rdlock(&read_lock);
     int fcli = sessions[session_id].fhandler; // this fhandler belongs to the client itself
     pthread_rwlock_unlock(&read_lock);
-    if (fhandle < 0) {
-        //???
+    if (fhandle == -1) {
+        slait_write(fcli, buffer, sizeof(int));
+        return;
     }
 
     // LEN
@@ -456,7 +457,16 @@ void tfs_handle_write() {
         //          ENOENT -> same as EBADF ???
         exit(EXIT_FAILURE);
     }
+
     int fhandle = atoi(buffer);
+
+    pthread_rwlock_rdlock(&read_lock);
+    int fcli = sessions[session_id].fhandler; // this fhandler belongs to the client itself
+    pthread_rwlock_unlock(&read_lock);
+    if (fhandle == -1) {
+        slait_write(fcli, buffer, sizeof(int));
+        return;
+    }
 
     // LEN
     ret = slait(buffer, sizeof(int), fserv);
@@ -533,6 +543,14 @@ void tfs_handle_close() {
     }
     
     int fhandle = atoi(buffer);
+
+    pthread_rwlock_rdlock(&read_lock);
+    int fcli = sessions[session_id].fhandler; // this fhandler belongs to the client itself
+    pthread_rwlock_unlock(&read_lock);
+    if (fhandle == -1) {
+        slait_write(fcli, buffer, sizeof(int));
+        return;
+    }
 
     // REQUEST PARSED
 
@@ -747,32 +765,14 @@ void tfs_thread_open(slave_t *slave) {
     // OPEN FILE IN TFS
     int tfs_fhandler = tfs_open(aux, flags);
 
-    if (tfs_fhandler == -1) {
-        printf("[ERROR - SERVER] Open tfs\n");
-        // ERROR : OPEN FILE SYSTEM
-        // CAUSES : INTERNAL ERROR
-        // HANDLE : responde to client, move on
-        exit(EXIT_FAILURE);
-    } 
-
-    int fcli = sessions[session_id].fhandler; //this is client api fhandler
-
     memset(aux, '\0', SIZE);
     sprintf(aux, "%d", tfs_fhandler);
 
+    int fcli = sessions[session_id].fhandler; // this fhandler belongs to the client itself
+
     slait_write(fcli, aux, sizeof(int));
-    /*ssize_t write_size = write(fcli, aux, sizeof(int));
-    if (write_size < 0) {
-        printf("[ERROR - SERVER] Error writing : %s\n", strerror(errno));
-        // ERROR : WRITE ON CLIENT PIPE
-            // CAUSES : EPIPE, EBADF, ENOENT, EINTR
-            // HANDLE : EPIPE -> erase the client, declare him as dead
-            //          EBADF -> same handle as EPIPE?
-            //          ENOENT -> CLOSE AND OPEN CLIENT (?)
-            //          EINTR -> TEMP_FAILURE_RETRY like
-        exit(EXIT_FAILURE);
-    } */
-    printf("[INFO - SERVER] CHECKPOINT THREAD OPEN\n");
+
+    printf("[INFO - SERVER] CHECKPOINT EXITING THREAD OPEN\n");
 
 }
 
@@ -823,14 +823,24 @@ void tfs_thread_read(slave_t *slave) {
     size_t len = slave->request.len;
     int fhandler = slave->request.fhandler;
 
+    pthread_rwlock_rdlock(&read_lock);
+    int fcli = sessions[session_id].fhandler; // this fhandler belongs to the client itself
+    pthread_rwlock_unlock(&read_lock);
+    if (fhandler == -1) {
+        slait_write(fcli, buffer, sizeof(int));
+        return;
+    }
+
     char ouput_tfs[sizeof(char) * len]; 
     memset(ouput_tfs, '\0', sizeof(ouput_tfs));
 
     ssize_t read_bytes = tfs_read(fhandler, ouput_tfs, len);
 
+    /*
     pthread_rwlock_rdlock(&read_lock);
     int fcli = sessions[session_id].fhandler;
     pthread_rwlock_unlock(&read_lock);
+    */
 
     memset(buffer, '\0', sizeof(buffer));
 
@@ -898,7 +908,7 @@ void tfs_thread_write(slave_t *slave) {
     int fcli = sessions[session_id].fhandler; // this fhandler belongs to the client itself
     pthread_rwlock_unlock(&read_lock);
     
-    if (fhandler < 0) {
+    if (fhandler == -1) {
         slait_write(fcli, buffer, sizeof(int));
         return;
     }
