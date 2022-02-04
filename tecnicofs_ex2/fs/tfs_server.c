@@ -657,7 +657,7 @@ int tfs_handle_shutdown_after_all_close() {
 
     pthread_mutex_unlock(&slaves[session_id].slave_mutex);
 
-    printf("[INFO - SERVER] CHECKPOINT EXITING SHUTDOWN\n");   
+    printf("[INFO - SERVER] (%d) CHECKPOINT EXITING SHUTDOWN\n", session_id);   
 
     return 0;
 
@@ -667,7 +667,7 @@ void tfs_thread_mount(slave_t *slave) {
 
 
     // POSSIVEL SOLUCAO
-    printf("[INFO - SERVER] CHECKPOINT ARRIVING TO THREAD MOUNT\n");
+    printf("[INFO - SERVER] (%d) CHECKPOINT ARRIVING TO THREAD MOUNT\n", slave->session_id);
 
 
     // O session id deve sempre ser positivo para a thread poder ser chamada,
@@ -733,7 +733,7 @@ void tfs_thread_unmount(slave_t *slave) {
     pthread_mutex_unlock(&global_mutex);
 
     printf("[INFO - SERVER] Open sessions on unmount = %d\n", open_sessions);
-    printf("[INFO - SERVER] CHECKPOINT THREAD UNMOUNT\n");
+    printf("[INFO - SERVER] (%d) CHECKPOINT THREAD UNMOUNT\n", session_id);
 
 }
 
@@ -756,7 +756,7 @@ void tfs_thread_open(slave_t *slave) {
 
     slait_write(fcli, aux, sizeof(int));
 
-    printf("[INFO - SERVER] CHECKPOINT EXITING THREAD OPEN\n");
+    printf("[INFO - SERVER] (%d) CHECKPOINT EXITING THREAD OPEN\n", session_id);
 
 }
 
@@ -794,7 +794,7 @@ void tfs_thread_close(slave_t *slave) {
             //          ENOENT -> CLOSE AND OPEN CLIENT (?)
             //          EINTR -> TEMP_FAILURE_RETRY like
     } 
-    printf("[INFO - SERVER] CHECKPOINT THREAD CLOSE\n");
+    printf("[INFO - SERVER] (%d) CHECKPOINT THREAD CLOSE\n", session_id);
 
 }
 
@@ -870,7 +870,7 @@ void tfs_thread_read(slave_t *slave) {
             //          EINTR -> TEMP_FAILURE_RETRY like
     }
     */
-    printf("[INFO - SERVER] CHECKPOINT EXITING THREAD READ\n");
+    printf("[INFO - SERVER] (%d) CHECKPOINT EXITING THREAD READ\n", session_id);
 
 }
 
@@ -927,7 +927,7 @@ void tfs_thread_write(slave_t *slave) {
         exit(EXIT_FAILURE);
     }*/
 
-    printf("[INFO - SERVER] CHECKPOINT THREAD WRITE\n");
+    printf("[INFO - SERVER] (%d) CHECKPOINT THREAD WRITE\n", session_id);
 
 
 }
@@ -1050,8 +1050,6 @@ int server_init(char *buffer, char *name) {
     open_sessions = 0;
     memset(buffer, '\0', SIZE);
     memset(name, '\0', NAME_SIZE);
-
-    can_shutdown = 0;
 
     for (int i = 0; i < S; i++) {
         free_sessions[i] = FREE_POS;
