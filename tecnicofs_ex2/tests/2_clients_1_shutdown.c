@@ -38,7 +38,7 @@ int main(int argc, char **argv) {
         r = tfs_write(f, str, strlen(str));
         assert(r == strlen(str));;
         assert(tfs_close(f) != -1);
-        sleep(1);
+        //sleep(1);
         assert(tfs_shutdown_after_all_closed() == 0);
         exit(0);
     } 

@@ -53,10 +53,6 @@ static session_t sessions[S];
 static session_state_t free_sessions[S];
 slave_t slaves[S];
 
-pthread_mutex_t can_shutdown_mutex = PTHREAD_MUTEX_INITIALIZER;
-pthread_cond_t can_shutdown_cond = PTHREAD_COND_INITIALIZER;
-static int can_shutdown;
-
 pthread_rwlock_t read_lock = PTHREAD_RWLOCK_INITIALIZER;
 pthread_mutex_t global_mutex = PTHREAD_MUTEX_INITIALIZER;
 
@@ -663,18 +659,6 @@ int tfs_handle_shutdown_after_all_close() {
 
     printf("[INFO - SERVER] CHECKPOINT EXITING SHUTDOWN\n");   
 
-    // adicionar cond var que espera que a thread conclua o pedido ??
-
-    /*if (pthread_mutex_lock(&can_shutdown_mutex) == -1) return -1;
-    
-    while(!can_shutdown) {
-        pthread_cond_wait(&can_shutdown_cond, &can_shutdown_mutex);
-    }
-
-    if (pthread_mutex_unlock(&can_shutdown_mutex) == -1) return -1;   
-    */
-    printf("[INFO - SERVER] CHECKPOINT WAIT IS FINISHED ON SHUTDOWN\n");
-
     return 0;
 
 }
@@ -970,15 +954,7 @@ void tfs_thread_shutdown_after_all_close(slave_t *slave) {
     slait_write(fcli, buffer, sizeof(int));
 
     printf("[INFO - SERVER] THREAD SHUTDOWN RETURNING FROM OPS\n");
-
-    /*if (pthread_mutex_lock(&can_shutdown_mutex) == -1) exit(EXIT_FAILURE);
     
-    can_shutdown = 1;
-    pthread_cond_signal(&can_shutdown_cond);
-
-    if (pthread_mutex_unlock(&can_shutdown_mutex) == -1) exit(EXIT_FAILURE); 
-    */
-    /*
     ssize_t write_size = write(fcli, buffer, sizeof(int));
     if (write_size == -1) {
         // ERROR : WRITE ON CLIENT PIPE
@@ -987,8 +963,9 @@ void tfs_thread_shutdown_after_all_close(slave_t *slave) {
             //          EBADF -> same handle as EPIPE?
             //          ENOENT -> CLOSE AND OPEN CLIENT (?)
             //          EINTR -> TEMP_FAILURE_RETRY like
-        return -1;
-    }*/
+        exit(EXIT_FAILURE);
+    }
+    exit(EXIT_SUCCESS);
 }
 
 void solve_request(slave_t *slave) {
@@ -1246,12 +1223,7 @@ int main(int argc, char **argv) {
             case (TFS_OP_CODE_SHUTDOWN_AFTER_ALL_CLOSED):
 
                 printf("[INFO - SERVER] : Calling shutdown...\n");
-                if (tfs_handle_shutdown_after_all_close() == 0) {
-                    return 0;
-                } else {
-                    printf("[ERROR - SERVER] Error shutting down server\n");
-                    exit(EXIT_FAILURE);
-                }
+                tfs_handle_shutdown_after_all_close();
             break;
 
             default:

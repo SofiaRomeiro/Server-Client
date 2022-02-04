@@ -194,6 +194,8 @@ int tfs_open(char const *name, int flags) {
         return -1;
     }
 
+    printf("[INFO - OPS] Open files when exiting open = %d\n", open_files);
+
     return ret;
 }
 
