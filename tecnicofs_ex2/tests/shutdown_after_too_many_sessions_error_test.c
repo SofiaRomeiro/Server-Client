@@ -1,3 +1,7 @@
+<<<<<<< HEAD
+=======
+
+>>>>>>> dev-sofia
 #include "client/tecnicofs_client_api.h"
 #include <assert.h>
 #include <stdio.h>
@@ -9,7 +13,10 @@
 
 /*  
     WARNING : Set S to 3 before testing
+<<<<<<< HEAD
 
+=======
+>>>>>>> dev-sofia
     1 tifu, 2 tifu, QUANTOS TIFU DEU?!
 */
 
@@ -75,7 +82,10 @@ int main(int argc, char **argv) {
         r = tfs_write(f, str, strlen(str));
         assert(r == strlen(str));
         assert(tfs_close(f) != -1);
+<<<<<<< HEAD
         //assert(tfs_shutdown_after_all_closed() == 0);
+=======
+>>>>>>> dev-sofia
         assert(tfs_shutdown_after_all_closed() == 0);
         exit(0);
     }
@@ -84,6 +94,11 @@ int main(int argc, char **argv) {
         exit(EXIT_FAILURE);
     }
 
+<<<<<<< HEAD
+=======
+    //sleep(1);
+
+>>>>>>> dev-sofia
     pid4 = fork();
     if (pid4 == 0) {
         assert(tfs_mount(argv[4], argv[5]) != 0);

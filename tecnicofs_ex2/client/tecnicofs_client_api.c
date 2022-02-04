@@ -80,8 +80,6 @@ int tfs_mount(char const *client_pipe_path, char const *server_pipe_path) {
         return -1;
     } 
 
-    //printf("[INFO - API] Waiting for server response...\n");
-
     // RECEIVE SERVER RESPONSE
     ssize_t ret = slait(buffer, sizeof(int), fcli); 
     if (ret == -1) {
