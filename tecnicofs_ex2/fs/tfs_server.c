@@ -18,6 +18,7 @@
 #define SIZE_OF_CHAR sizeof(char)
 #define SIZE_OF_INT sizeof(int)
 #define NAME_SIZE 40
+#define MAX_WRITE_SIZE 1024
 
 typedef struct {
     int session_id;
@@ -32,7 +33,7 @@ typedef struct {
     size_t len;
     int flags;
     char name[NAME_SIZE];
-    char *to_write;
+    char to_write[MAX_WRITE_SIZE];
 } request_t;
 
 typedef struct {
@@ -536,6 +537,7 @@ void tfs_handle_read() {
 void tfs_handle_write() {
 
     char buffer[SIZE];
+    memset(buffer, '\0', SIZE);
     ssize_t ret;
 
     // SESSION_ID
@@ -889,6 +891,8 @@ void tfs_thread_write(slave_t *slave) {
     char buffer[SIZE];
     memset(buffer, '\0', SIZE);   
 
+    printf("[ERROR - SERVER] CHECKPOINT ARRIVING TO THREAD WRITE\n");
+
     int session_id = slave->session_id;
     int fhandler = slave->request.fhandler;
     size_t len = slave->request.len;
@@ -904,6 +908,7 @@ void tfs_thread_write(slave_t *slave) {
         slait_write(fcli, buffer, sizeof(int));
         return;
     }
+    printf("A\n");
     ssize_t written = tfs_write(fhandler, to_write, len);
     memset(buffer, '\0', sizeof(buffer));
     sprintf(buffer, "%d", (int)written);   
