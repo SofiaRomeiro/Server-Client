@@ -366,8 +366,9 @@ int find_free_pos() {
 
 void tfs_handle_mount(char name[]) {
 
-    int fcli, free_session_id = 0, ret;
+    int fcli, free_session_id = 0;
     char session_id_cli[sizeof(int)];
+    ssize_t ret;
 
     memset(session_id_cli, '\0', sizeof(session_id_cli));
     memset(name, '\0', NAME_SIZE);
@@ -695,7 +696,7 @@ int tfs_handle_shutdown_after_all_close() {
 
     ssize_t size_read = slait(buffer, sizeof(int), fserv);
     if (size_read == -1) {
-        return;
+        return 0;
     }
 
     // session_id
@@ -721,7 +722,7 @@ int tfs_handle_shutdown_after_all_close() {
 
 void tfs_thread_mount(slave_t *slave) {
 
-    int ret;
+    ssize_t ret;
 
     // POSSIVEL SOLUCAO
     printf("[INFO - SERVER] (%d) CHECKPOINT ARRIVING TO THREAD MOUNT\n", slave->session_id);
@@ -780,7 +781,7 @@ void tfs_thread_unmount(slave_t *slave) {
 
 void tfs_thread_open(slave_t *slave) {
 
-    int ret;
+    ssize_t ret;
     char aux[SIZE];
     memset(aux, '\0', SIZE);
 
@@ -835,7 +836,7 @@ void tfs_thread_read(slave_t *slave) {
 
     char buffer[SIZE];
     char aux[SIZE];
-    int ret;
+    ssize_t ret;
     int session_id = slave->session_id;
     size_t len = slave->request.len;
     int fhandler = slave->request.fhandler;
@@ -1048,7 +1049,7 @@ int server_init(char *buffer, char *name) {
 
         slaves[i].session_id = i;
         slaves[i].wake_up = 0;
-        
+
         if (pthread_cond_init(&slaves[i].work_cond, NULL) != 0) {
             printf("[ERROR - SERVER] Error creating cond var : %s\n", strerror(errno));
             return -1;
