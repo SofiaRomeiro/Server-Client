@@ -14,7 +14,7 @@ INCLUDES = $(addprefix -I, $(INCLUDE_DIRS))
 SOURCES  := $(wildcard */*.c)
 HEADERS  := $(wildcard */*.h)
 OBJECTS  := $(SOURCES:.c=.o)
-TARGET_EXECS := fs/tfs_server tests/lib_destroy_after_all_closed_test tests/lib_destroy_after_all_closed_test_1 tests/lib_destroy_after_all_closed_test_2 tests/client_server_simple_test tests/client_server_error_1 tests/2_clients_same_protocol tests/2_clients_different_protocol tests/5_clients_different_protocol tests/2_clients_1_shutdown tests/more_clients_than_supported
+TARGET_EXECS := fs/tfs_server tests/lib_destroy_after_all_closed_test tests/lib_destroy_after_all_closed_test_1 tests/lib_destroy_after_all_closed_test_2 tests/client_server_simple_test tests/client_server_error_1 tests/2_clients_same_protocol tests/2_clients_different_protocol tests/5_clients_different_protocol tests/2_clients_1_shutdown tests/more_clients_than_supported tests/shutdown_after_too_many_sessions_error_test
 
 # VPATH is a variable used by Makefile which finds *sources* and makes them available throughout the codebase
 # vpath %.h <DIR> tells make to look for header files in <DIR>
@@ -49,7 +49,7 @@ LDFLAGS = -pthread
 
 all: clean $(TARGET_EXECS)
 
-test: test0 test1 test2 test3 test4 test5 test6 test7 test8 test9
+test: test0 test1 test2 test3 test4 test5 test6 test7 test8 test9 test10 test11
 
 test0:
 	@printf "\n"
@@ -106,6 +106,11 @@ test10:
 	@echo ------- more_clients_than_supported ------------
 	./tests/more_clients_than_supported
 
+test11:
+	@printf "\n"
+	@echo ------- shutdown_after_too_many_sessions_error_test ------------
+	./tests/shutdown_after_too_many_sessions_error_test
+
 # The following target can be used to invoke clang-format on all the source and header
 # files. clang-format is a tool to format the source code based on the style specified 
 # in the file '.clang-format'.
@@ -132,6 +137,7 @@ fs/tfs_server: fs/operations.o fs/state.o common/common.o
 tests/lib_destroy_after_all_closed_test: tests/lib_destroy_after_all_closed_test.o fs/operations.o fs/state.o common/common.o
 tests/lib_destroy_after_all_closed_test_1: tests/lib_destroy_after_all_closed_test_1.o fs/operations.o fs/state.o common/common.o
 tests/lib_destroy_after_all_closed_test_2: tests/lib_destroy_after_all_closed_test_2.o fs/operations.o fs/state.o common/common.o
+tests/shutdown_after_too_many_sessions_error_test: tests/shutdown_after_too_many_sessions_error_test.o client/tecnicofs_client_api.o common/common.o
 
 clean:
 	rm -f $(OBJECTS) $(TARGET_EXECS)

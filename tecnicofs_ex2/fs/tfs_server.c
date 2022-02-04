@@ -12,7 +12,7 @@
 #include <pthread.h>
 
 // Specifies the max number of sessions existing simultaneously
-#define S 10
+#define S 3
 #define SIZE 100
 #define PERMISSIONS 0777
 #define SIZE_OF_CHAR sizeof(char)
@@ -395,9 +395,9 @@ void tfs_handle_read() {
     pthread_rwlock_rdlock(&read_lock);
     int fcli = sessions[session_id].fhandler; // this fhandler belongs to the client itself
     pthread_rwlock_unlock(&read_lock);
-    if (fhandle < 0) {
+    if (fhandle == -1) {
         slait_write(fcli, buffer, sizeof(int));
-        return 0;
+        return;
     }
 
     // LEN
@@ -459,9 +459,9 @@ void tfs_handle_write() {
     pthread_rwlock_rdlock(&read_lock);
     int fcli = sessions[session_id].fhandler; // this fhandler belongs to the client itself
     pthread_rwlock_unlock(&read_lock);
-    if (fhandle < 0) {
+    if (fhandle == -1) {
         slait_write(fcli, buffer, sizeof(int));
-        return 0;
+        return;
     }
 
     // LEN
@@ -543,9 +543,9 @@ void tfs_handle_close() {
     pthread_rwlock_rdlock(&read_lock);
     int fcli = sessions[session_id].fhandler; // this fhandler belongs to the client itself
     pthread_rwlock_unlock(&read_lock);
-    if (fhandle < 0) {
+    if (fhandle == -1) {
         slait_write(fcli, buffer, sizeof(int));
-        return 0;
+        return;
     }
 
     // REQUEST PARSED
@@ -752,24 +752,26 @@ void tfs_thread_open(slave_t *slave) {
     pthread_rwlock_rdlock(&read_lock);
     int fcli = sessions[session_id].fhandler; // this fhandler belongs to the client itself
     pthread_rwlock_unlock(&read_lock);
-    if (tfs_fhandler < 0) {
-        slait_write(fcli, -1, sizeof(int));
-        return 0;
+    if (tfs_fhandler == -1) {
+        slait_write(fcli, "-1", sizeof(int));
+        return;
     }
 
+    /*
     if (tfs_fhandler == -1) {
         printf("[ERROR - SERVER] Open tfs\n");
         // ERROR : OPEN FILE SYSTEM
         // CAUSES : INTERNAL ERROR
         // HANDLE : responde to client, move on
         exit(EXIT_FAILURE);
-    } 
+    }
 
     pthread_rwlock_rdlock(&read_lock);
 
     int fcli = sessions[session_id].fhandler; //this is client api fhandler
 
     pthread_rwlock_unlock(&read_lock);
+    */
 
     memset(aux, '\0', SIZE);
     sprintf(aux, "%d", tfs_fhandler);
@@ -837,14 +839,24 @@ void tfs_thread_read(slave_t *slave) {
     size_t len = slave->request.len;
     int fhandler = slave->request.fhandler;
 
+    pthread_rwlock_rdlock(&read_lock);
+    int fcli = sessions[session_id].fhandler; // this fhandler belongs to the client itself
+    pthread_rwlock_unlock(&read_lock);
+    if (fhandler == -1) {
+        slait_write(fcli, buffer, sizeof(int));
+        return;
+    }
+
     char ouput_tfs[sizeof(char) * len]; 
     memset(ouput_tfs, '\0', sizeof(ouput_tfs));
 
     ssize_t read_bytes = tfs_read(fhandler, ouput_tfs, len);
 
+    /*
     pthread_rwlock_rdlock(&read_lock);
     int fcli = sessions[session_id].fhandler;
     pthread_rwlock_unlock(&read_lock);
+    */
 
     memset(buffer, '\0', sizeof(buffer));
 
@@ -910,9 +922,9 @@ void tfs_thread_write(slave_t *slave) {
     int fcli = sessions[session_id].fhandler; // this fhandler belongs to the client itself
     pthread_rwlock_unlock(&read_lock);
     
-    if (fhandler < 0) {
+    if (fhandler == -1) {
         slait_write(fcli, buffer, sizeof(int));
-        return 0;
+        return;
     }
     ssize_t written = tfs_write(fhandler, to_write, len);
 
