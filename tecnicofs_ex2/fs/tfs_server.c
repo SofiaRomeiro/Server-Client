@@ -396,7 +396,8 @@ void tfs_handle_read() {
     int fcli = sessions[session_id].fhandler; // this fhandler belongs to the client itself
     pthread_rwlock_unlock(&read_lock);
     if (fhandle < 0) {
-        //???
+        slait_write(fcli, buffer, sizeof(int));
+        return 0;
     }
 
     // LEN
@@ -452,7 +453,16 @@ void tfs_handle_write() {
         //          ENOENT -> same as EBADF ???
         exit(EXIT_FAILURE);
     }
+
     int fhandle = atoi(buffer);
+
+    pthread_rwlock_rdlock(&read_lock);
+    int fcli = sessions[session_id].fhandler; // this fhandler belongs to the client itself
+    pthread_rwlock_unlock(&read_lock);
+    if (fhandle < 0) {
+        slait_write(fcli, buffer, sizeof(int));
+        return 0;
+    }
 
     // LEN
     ret = slait(buffer, sizeof(int), fserv);
@@ -529,6 +539,14 @@ void tfs_handle_close() {
     }
     
     int fhandle = atoi(buffer);
+
+    pthread_rwlock_rdlock(&read_lock);
+    int fcli = sessions[session_id].fhandler; // this fhandler belongs to the client itself
+    pthread_rwlock_unlock(&read_lock);
+    if (fhandle < 0) {
+        slait_write(fcli, buffer, sizeof(int));
+        return 0;
+    }
 
     // REQUEST PARSED
 
@@ -730,6 +748,14 @@ void tfs_thread_open(slave_t *slave) {
 
     // OPEN FILE IN TFS
     int tfs_fhandler = tfs_open(aux, flags);
+
+    pthread_rwlock_rdlock(&read_lock);
+    int fcli = sessions[session_id].fhandler; // this fhandler belongs to the client itself
+    pthread_rwlock_unlock(&read_lock);
+    if (tfs_fhandler < 0) {
+        slait_write(fcli, -1, sizeof(int));
+        return 0;
+    }
 
     if (tfs_fhandler == -1) {
         printf("[ERROR - SERVER] Open tfs\n");
