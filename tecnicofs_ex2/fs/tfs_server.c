@@ -57,6 +57,10 @@ slave_t slaves[S];
 pthread_rwlock_t read_lock = PTHREAD_RWLOCK_INITIALIZER;
 pthread_mutex_t global_mutex = PTHREAD_MUTEX_INITIALIZER;
 
+void immortal() {
+    
+}
+
 void erase_client(int session_id) {
 
     if (session_id < 0) return; //client doesn't exist
@@ -169,7 +173,7 @@ int handle_error(int fcli) {
 //          ENOENT -> CLOSE AND OPEN CLIENT (?)
 //          EINTR -> TEMP_FAILURE_RETRY like
 //          ENXIO -> TEMP_FAILURE_RETRY like
-    // int fhandle = -1;
+
     char *client_name;
     int session_id = -1;
 
@@ -381,16 +385,12 @@ void tfs_handle_mount(char name[]) {
         return;
     }  
 
-    printf("[INFO - SERVER] Open pipe from client %s\n", name);
-
     fcli = slait_open(name);
 
     if (fcli == -1) {
         printf("[INFO - SERVER] Client %s isn't responding\n", name);
         return;
     }
-
-    printf("[INFO - SERVER] Number of sessions : %d\n", open_sessions);
 
     if (open_sessions == S) {
         printf("[ERROR - SERVER] Reached limit number of sessions, please wait\n");
@@ -428,17 +428,10 @@ void tfs_handle_mount(char name[]) {
     if (pthread_cond_signal(&slaves[free_session_id].work_cond) != 0) exit(EXIT_FAILURE);;
     if (pthread_mutex_unlock(&slaves[free_session_id].slave_mutex) != 0) exit(EXIT_FAILURE);
 
-
-    if (pthread_mutex_unlock(&slaves[free_session_id].slave_mutex) != 0) exit(EXIT_FAILURE);
-
     if (pthread_mutex_lock(&global_mutex) != 0) exit(EXIT_FAILURE);
     open_sessions++;
     if (pthread_mutex_unlock(&global_mutex) != 0) exit(EXIT_FAILURE);
-
-
-    printf("[INFO - SERVER] EXITING... Number of sessions : %d\n", open_sessions);
-    printf("[INFO - SERVER] (%d) CHECKPOINT EXITING MOUNT\n", free_session_id);
-
+    
 }
 
 void tfs_handle_unmount() {
