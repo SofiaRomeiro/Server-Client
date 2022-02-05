@@ -30,8 +30,4 @@ enum {
     TFS_OP_CODE_SHUTDOWN_AFTER_ALL_CLOSED = 7
 };
 
-/* functions */
-
-ssize_t slait(char *buffer_c, size_t len, int fh);
-
 #endif /* COMMON_H */
