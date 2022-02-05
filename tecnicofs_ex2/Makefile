@@ -116,17 +116,17 @@ fmt: $(SOURCES) $(HEADERS)
 # Note the lack of a rule.
 # make uses a set of default rules, one of which compiles C binaries
 # the CC, LD, CFLAGS and LDFLAGS are used in this rule
-tests/client_server_simple_test: tests/client_server_simple_test.o client/tecnicofs_client_api.o common/common.o
-tests/2_clients_same_protocol: tests/2_clients_same_protocol.o client/tecnicofs_client_api.o common/common.o
-tests/2_clients_1_shutdown: tests/2_clients_1_shutdown.o client/tecnicofs_client_api.o common/common.o
-tests/more_clients_than_supported: tests/more_clients_than_supported.o client/tecnicofs_client_api.o common/common.o
-tests/2_clients_different_protocol: tests/2_clients_different_protocol.o client/tecnicofs_client_api.o common/common.o
-tests/5_clients_different_protocol: tests/5_clients_different_protocol.o client/tecnicofs_client_api.o common/common.o
-fs/tfs_server: fs/operations.o fs/state.o common/common.o
-tests/lib_destroy_after_all_closed_test: tests/lib_destroy_after_all_closed_test.o fs/operations.o fs/state.o common/common.o
-tests/lib_destroy_after_all_closed_test_1: tests/lib_destroy_after_all_closed_test_1.o fs/operations.o fs/state.o common/common.o
-tests/lib_destroy_after_all_closed_test_2: tests/lib_destroy_after_all_closed_test_2.o fs/operations.o fs/state.o common/common.o
-tests/shutdown_after_too_many_sessions_error_test: tests/shutdown_after_too_many_sessions_error_test.o client/tecnicofs_client_api.o common/common.o
+tests/client_server_simple_test: tests/client_server_simple_test.o client/tecnicofs_client_api.o 
+tests/2_clients_same_protocol: tests/2_clients_same_protocol.o client/tecnicofs_client_api.o
+tests/2_clients_1_shutdown: tests/2_clients_1_shutdown.o client/tecnicofs_client_api.o 
+tests/more_clients_than_supported: tests/more_clients_than_supported.o client/tecnicofs_client_api.o
+tests/2_clients_different_protocol: tests/2_clients_different_protocol.o client/tecnicofs_client_api.o 
+tests/5_clients_different_protocol: tests/5_clients_different_protocol.o client/tecnicofs_client_api.o 
+fs/tfs_server: fs/operations.o fs/state.o
+tests/lib_destroy_after_all_closed_test: tests/lib_destroy_after_all_closed_test.o fs/operations.o fs/state.o 
+tests/lib_destroy_after_all_closed_test_1: tests/lib_destroy_after_all_closed_test_1.o fs/operations.o fs/state.o 
+tests/lib_destroy_after_all_closed_test_2: tests/lib_destroy_after_all_closed_test_2.o fs/operations.o fs/state.o 
+tests/shutdown_after_too_many_sessions_error_test: tests/shutdown_after_too_many_sessions_error_test.o client/tecnicofs_client_api.o 
 
 clean:
 	rm -f $(OBJECTS) $(TARGET_EXECS)
