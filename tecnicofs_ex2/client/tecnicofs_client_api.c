@@ -20,7 +20,6 @@ ssize_t slait(char *buffer_c, size_t len, int fh) {
             printf("[ERROR - SLAIT] Error reading file, %s\n", strerror(errno));
             return written_tfs;
         }
-
         else if (written_tfs == 0) {
             printf("[INFO - SLAIT] Slait EOF\n");
             return written_tfs;
@@ -52,8 +51,7 @@ int tfs_mount(char const *client_pipe_path, char const *server_pipe_path) {
         if ((fserv = open(server_pipe_path, O_WRONLY)) >= 0) {
             break;
         }
-    }
-    
+    }    
 
     if (write(fserv, buffer, sizeof(char) + NAME_SIZE) == -1) {
         printf("[ERROR - API] Error writing : %s\n", strerror(errno));
@@ -127,14 +125,10 @@ int tfs_unmount() {
         return -1;
     }
 
-    //printf("[INFO - API] Client %d is dead\n", getpid());
-
     return 0;  
 }
 
 int tfs_open(char const *name, int flags) {
-
-    //printf("[INFO - API] (%d) Calling api open...\n", getpid());
     
     char buffer[sizeof(char) + sizeof(int) + NAME_SIZE + sizeof(int)];
     memset(buffer, '\0', sizeof(buffer));
@@ -172,16 +166,12 @@ int tfs_open(char const *name, int flags) {
         return -1;
     }
 
-    //printf("[INFO API] Writting open args...\n");
-
     memset(buffer, '\0', sizeof(buffer));
 
     ssize_t ret = slait(buffer, sizeof(int), fcli);
     if (ret == -1) {
         printf("[ERROR - API] Error reading : %s\n", strerror(errno));
     }
-
-    //printf("[INFO API] Readed open response...\n");
 
     int fhandler = atoi(buffer);
     if (fhandler < 0) return -1;
@@ -191,10 +181,8 @@ int tfs_open(char const *name, int flags) {
 
 int tfs_close(int fhandle) {
 
-    //printf("[INFO - API] (%d) Calling api close...\n", getpid());
-
     size_t len = 0;
-    char buffer[sizeof(char) + 2 * sizeof(int)]; // 2 * sizeof(int)??
+    char buffer[sizeof(char) + (2 * sizeof(int))];
     char aux[sizeof(int)];
     memset(buffer, '\0', sizeof(buffer));
     memset(aux, '\0', sizeof(aux));
@@ -237,14 +225,11 @@ int tfs_close(int fhandle) {
 
 ssize_t tfs_write(int fhandle, void const *buffer, size_t len) {
 
-    //printf("[INFO - API] (%d) Calling api write...\n", getpid());
-    
-    //size_t buffer_size = 1 + 4 + 4 + 4 + len + 1;
     size_t buffer_size = sizeof(char) + (3 * sizeof(int)) + len + sizeof(char);
     size_t offset = 0;
     char buffer_c[buffer_size];
     memset(buffer_c, '\0', sizeof(buffer));
-    char aux[2 * sizeof(int) + sizeof(char)]; //int + int + char??
+    char aux[(2 * sizeof(int)) + sizeof(char)];
     memset(aux, '\0', sizeof(aux));
 
     // OP_CODE
@@ -270,7 +255,7 @@ ssize_t tfs_write(int fhandle, void const *buffer, size_t len) {
     offset += sizeof(int);
 
     // BUFFER WITH CONTENT
-    memcpy(buffer_c + offset, buffer, len); // ??
+    memcpy(buffer_c + offset, buffer, len);
     offset += len;
 
     // SEND MSG TO SERVER
@@ -297,13 +282,11 @@ ssize_t tfs_write(int fhandle, void const *buffer, size_t len) {
 
 ssize_t tfs_read(int fhandle, void *buffer, size_t len) {
 
-    //printf("[INFO - API] (%d) Calling api read...\n", getpid());
-
     size_t buffer_size = (2 * sizeof(char)) + (3 * sizeof(int));
     size_t offset = 0;
     char buffer_c[buffer_size];
     memset(buffer_c, '\0', sizeof(buffer_c));
-    char aux[2 * sizeof(int) + sizeof(char)]; //int + int + char??
+    char aux[(2 * sizeof(int)) + sizeof(char)];
     memset(aux, '\0', sizeof(aux));
 
     // OP_CODE
@@ -361,11 +344,8 @@ ssize_t tfs_read(int fhandle, void *buffer, size_t len) {
     if (ret == -1) {
         printf("[ERROR - API] Error reading : %s\n", strerror(errno));
         return -1;
-    }  
+    }
 
-    //memcpy(buffer, buffer_c, read_code);
-
-    // READ ANSWER
     return (ssize_t)read_code;
 }
 
